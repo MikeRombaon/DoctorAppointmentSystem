@@ -1,0 +1,11 @@
+<Solution>
+  <Project Path="DentalInformationSystem.API/DoctorAppointmentSystem.API.csproj" />
+  <Project Path="dentalinformationsystem.client/DoctorAppointmentSystem.client.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+  <Project Path="DentalInformationSystem.Data/DoctorAppointmentSystem.Data.csproj" />
+  <Project Path="DentalInformationSystem.Domain/DoctorAppointmentSystem.Domain.csproj" />
+  <Project Path="DentalInformationSystem.Repositories/DoctorAppointmentSystem.Repositories.csproj" />
+  <Project Path="DentalInformationSystem.Server/DoctorAppointmentSystem.Server.csproj" />
+</Solution>
