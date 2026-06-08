@@ -1,0 +1,15 @@
+.env
+.env.*
+*.user
+*.suo
+.vs/
+bin/
+obj/
+node_modules/
+DoctorAppointmentSystem.client/dist/
+DoctorAppointmentSystem.client/.vite/
+deploy/terraform/.terraform/
+deploy/terraform/*.tfstate
+deploy/terraform/*.tfstate.*
+deploy/terraform/*.tfvars
+deploy/terraform/.terraform.lock.hcl

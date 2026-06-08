@@ -296,6 +296,18 @@ public class InventoryController : BaseController
             pageSize = pageSize
         });
     }
+
+    [HttpDelete("items/{id:int}")]
+    public async Task<IActionResult> DeleteItem(int id)
+    {
+        var item = await _unitOfWork.InventoryItems.GetByIdAsync(id);
+        if (item == null) return NotFound();
+
+        _unitOfWork.InventoryItems.Remove(item);
+        await _unitOfWork.SaveChangesAsync();
+
+        return NoContent();
+    }
 }
 
 public class IssueStockRequest

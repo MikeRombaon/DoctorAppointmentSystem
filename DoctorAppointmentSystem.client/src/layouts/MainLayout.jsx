@@ -109,6 +109,7 @@ const NAV_GROUPS = [
     label: 'Billing',
     items: [
       { text: 'Invoices', icon: <InvoiceIcon />, path: '/invoices', roles: [UserRoles.Admin] },
+      { text: 'Subscription', icon: <EstimateIcon />, path: '/subscription', roles: [UserRoles.Admin] },
       { text: 'Insurance', icon: <InsuranceIcon />, path: '/insurance', roles: [UserRoles.Admin, UserRoles.SupportStaff] },
       { text: 'Estimates', icon: <EstimateIcon />, path: '/estimates', roles: [UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff] },
       { text: 'Claims', icon: <ClaimIcon />, path: '/claims', roles: [UserRoles.Admin] },
@@ -122,7 +123,7 @@ const NAV_GROUPS = [
       { text: 'Purchase Orders', icon: <POIcon />, path: '/purchase-orders', roles: [UserRoles.Admin, UserRoles.SupportStaff] },
       { text: 'Lab Orders', icon: <LabIcon />, path: '/lab-orders', roles: [UserRoles.Admin, UserRoles.ClinicalStaff] },
       { text: 'Dr. Schedule', icon: <ScheduleIcon />, path: '/dentist-schedule', roles: [UserRoles.Admin, UserRoles.ClinicalStaff] },
-      { text: 'Branches',
+      { text: 'Branches', icon: <BranchIcon />, path: '/branches', roles: [UserRoles.Admin] },
     ],
   },
   {

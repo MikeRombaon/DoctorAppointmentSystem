@@ -67,6 +67,12 @@ export const inventoryService = {
     const response = await apiClient.get('/inventory/transactions', { params });
     return response.data;
   },
+
+  // Alias used by PurchaseOrders.jsx: inventoryService.getAll(page, pageSize)
+  getAll: async (page = 1, pageSize = 10) => {
+    const response = await apiClient.get('/inventory/items', { params: { page, pageSize } });
+    return response.data;
+  },
 };
 
 export default inventoryService;

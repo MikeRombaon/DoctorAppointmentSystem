@@ -25,6 +25,7 @@ export const ROUTE_PERMISSIONS = {
 
   // Admin-only routes
   INVOICES: [UserRoles.SuperAdmin, UserRoles.Admin],
+  SUBSCRIPTION: [UserRoles.SuperAdmin, UserRoles.Admin],
   USERS: [UserRoles.SuperAdmin, UserRoles.Admin],
 
   // Phase 2 - Financial (Admin only)
@@ -51,7 +52,7 @@ export const ROUTE_PERMISSIONS = {
   PURCHASE_ORDERS: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.SupportStaff],
   LAB_ORDERS: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff],
   DIAGNOSTIC_REQUESTS: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff],
-  WAITLIST:
+  WAITLIST: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff],
 
   // Phase 6 - Notifications, Communication, Reminders
   NOTIFICATION_CENTER: [], // all authenticated users
@@ -76,6 +77,7 @@ export const ROUTES = {
   TREATMENTS: '/treatments',
   INVENTORY: '/inventory',
   INVOICES: '/invoices',
+  SUBSCRIPTION: '/subscription',
   USERS: '/users',
   PROFILE: '/profile',
   UNAUTHORIZED: '/unauthorized',

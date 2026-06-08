@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box, Typography, Button, Alert, CircularProgress, Grid, Paper,
   TextField, Divider, Switch, FormControlLabel, Chip, Tooltip,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
+  MenuItem, Select, InputLabel, FormControl, LinearProgress,
 } from '@mui/material';
-import { Save, Add, Delete, Edit, SettingsApplications } from '@mui/icons-material';
+import { Save, Add, Delete, Edit, SettingsApplications, Payments, CheckCircle, HourglassTop, Warning } from '@mui/icons-material';
 import { settingsService } from '../services/settingsService';
+import tenantService from '../services/tenantService';
+import { useAuth } from '../contexts/AuthContext';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -18,6 +21,7 @@ const DEFAULT_HOURS = DAYS.map((day, i) => ({
 }));
 
 export default function Settings() {
+  const { user } = useAuth();
   const [settings, setSettings] = useState(null);
   const [form, setForm] = useState(null);
   const [hours, setHours] = useState(DEFAULT_HOURS);
@@ -25,6 +29,24 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // ── Subscription renewal state ────────────────────────────────────────────
+  const [tenantInfo, setTenantInfo] = useState(null);
+  const [renewOpen, setRenewOpen] = useState(false);
+  const [renewForm, setRenewForm] = useState({ amountPaid: '', currency: 'PHP', referenceNumber: '', paymentMethod: 'GCash', tenantNote: '' });
+  const [renewFile, setRenewFile] = useState(null);
+  const [renewSaving, setRenewSaving] = useState(false);
+  const [renewError, setRenewError] = useState('');
+  const [renewSuccess, setRenewSuccess] = useState('');
+  const [myPayments, setMyPayments] = useState([]);
+  const fileRef = useRef();
+
+  const loadMyPayments = async (tid) => {
+    try {
+      const all = await tenantService.getPayments('');
+      setMyPayments(all.filter(p => p.tenantId === tid));
+    } catch { /* silent */ }
+  };
 
   useEffect(() => {
     (async () => {
@@ -36,13 +58,22 @@ export default function Settings() {
         if (data.workingHoursJson) {
           try { setHours(JSON.parse(data.workingHoursJson)); } catch { /* use defaults */ }
         }
+        // Load tenant subscription info for the current tenant admin
+        if (user?.tenantId) {
+          try {
+            const tenants = await tenantService.getAll();
+            const t = tenants.find(x => x.id === user.tenantId);
+            setTenantInfo(t || null);
+            if (t) loadMyPayments(t.id);
+          } catch { /* silent */ }
+        }
       } catch {
         setError('Failed to load clinic settings.');
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [user]);
 
   const handleField = (field) => (e) =>
     setForm((f) => ({ ...f, [field]: e.target.value }));
@@ -64,6 +95,34 @@ export default function Settings() {
       setError('Failed to save settings.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleRenewSubmit = async () => {
+    if (!renewForm.amountPaid || !renewForm.referenceNumber) {
+      setRenewError('Amount and reference number are required.');
+      return;
+    }
+    setRenewSaving(true);
+    setRenewError('');
+    try {
+      const fd = new FormData();
+      fd.append('amountPaid', renewForm.amountPaid);
+      fd.append('currency', renewForm.currency);
+      fd.append('referenceNumber', renewForm.referenceNumber);
+      fd.append('paymentMethod', renewForm.paymentMethod);
+      fd.append('tenantNote', renewForm.tenantNote);
+      if (renewFile) fd.append('proofFile', renewFile);
+      await tenantService.submitPayment(tenantInfo.id, fd);
+      setRenewSuccess('Payment submitted! SuperAdmin will review and activate your subscription.');
+      setRenewOpen(false);
+      setRenewForm({ amountPaid: '', currency: 'PHP', referenceNumber: '', paymentMethod: 'GCash', tenantNote: '' });
+      setRenewFile(null);
+      loadMyPayments(tenantInfo.id);
+    } catch {
+      setRenewError('Failed to submit payment. Please try again.');
+    } finally {
+      setRenewSaving(false);
     }
   };
 
@@ -247,6 +306,81 @@ export default function Settings() {
           </Paper>
         </Grid>
 
+        {/* ── Subscription Status (non-SuperAdmin only) ─────────────────── */}
+        {tenantInfo && (
+          <Grid item xs={12}>
+            <Paper variant="outlined" sx={{ p: 3 }}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <Typography variant="subtitle1" fontWeight={600}>Subscription</Typography>
+                <Button variant="contained" color="primary" startIcon={<Payments />}
+                  onClick={() => { setRenewOpen(true); setRenewError(''); setRenewSuccess(''); }}>
+                  Renew Subscription
+                </Button>
+              </Box>
+              <Divider sx={{ mb: 2 }} />
+              {renewSuccess && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setRenewSuccess('')}>{renewSuccess}</Alert>}
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={4}>
+                  <Typography variant="body2" color="text.secondary">Plan</Typography>
+                  <Typography variant="body1" fontWeight={600}>{tenantInfo.subscriptionPlan || 'Trial'}</Typography>
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <Typography variant="body2" color="text.secondary">Status</Typography>
+                  <Chip
+                    size="small"
+                    label={tenantInfo.subscriptionStatus}
+                    color={tenantInfo.subscriptionStatus === 'Active' ? 'success' : tenantInfo.subscriptionStatus === 'ExpiringSoon' ? 'warning' : 'error'}
+                    icon={tenantInfo.subscriptionStatus === 'Active' ? <CheckCircle /> : tenantInfo.subscriptionStatus === 'ExpiringSoon' ? <Warning /> : <HourglassTop />}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <Typography variant="body2" color="text.secondary">Expires</Typography>
+                  <Typography variant="body1" fontWeight={600}>
+                    {tenantInfo.subscriptionExpiresAt ? new Date(tenantInfo.subscriptionExpiresAt).toLocaleDateString() : 'No expiry'}
+                  </Typography>
+                </Grid>
+              </Grid>
+
+              {/* My payment history */}
+              {myPayments.length > 0 && (
+                <Box mt={3}>
+                  <Typography variant="subtitle2" gutterBottom>My Payment Submissions</Typography>
+                  <TableContainer>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Date</TableCell>
+                          <TableCell>Amount</TableCell>
+                          <TableCell>Reference</TableCell>
+                          <TableCell>Method</TableCell>
+                          <TableCell>Status</TableCell>
+                          <TableCell>Note</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {myPayments.map(p => (
+                          <TableRow key={p.id}>
+                            <TableCell>{new Date(p.submittedAt).toLocaleDateString()}</TableCell>
+                            <TableCell>{p.currency} {Number(p.amountPaid).toLocaleString()}</TableCell>
+                            <TableCell>{p.referenceNumber}</TableCell>
+                            <TableCell>{p.paymentMethod}</TableCell>
+                            <TableCell>
+                              <Chip size="small"
+                                label={p.status}
+                                color={p.status === 'Approved' ? 'success' : p.status === 'Rejected' ? 'error' : 'warning'} />
+                            </TableCell>
+                            <TableCell>{p.rejectionNote || '—'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              )}
+            </Paper>
+          </Grid>
+        )}
+
         {/* Save footer */}
         <Grid item xs={12}>
           <Box display="flex" justifyContent="flex-end">
@@ -258,6 +392,79 @@ export default function Settings() {
           </Box>
         </Grid>
       </Grid>
+
+      {/* ── Renewal Dialog ────────────────────────────────────────────────── */}
+      <Dialog open={renewOpen} onClose={() => setRenewOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Submit Subscription Payment</DialogTitle>
+        <DialogContent dividers>
+          {renewError && <Alert severity="error" sx={{ mb: 2 }}>{renewError}</Alert>}
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Transfer your monthly subscription fee and fill in the details below.
+            Your subscription will be activated once SuperAdmin confirms your payment.
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={6}>
+              <TextField label="Amount Paid *" type="number" value={renewForm.amountPaid}
+                onChange={e => setRenewForm(f => ({ ...f, amountPaid: e.target.value }))}
+                size="small" fullWidth inputProps={{ min: 0, step: 0.01 }} />
+            </Grid>
+            <Grid item xs={6}>
+              <FormControl size="small" fullWidth>
+                <InputLabel>Currency</InputLabel>
+                <Select label="Currency" value={renewForm.currency}
+                  onChange={e => setRenewForm(f => ({ ...f, currency: e.target.value }))}>
+                  <MenuItem value="PHP">PHP</MenuItem>
+                  <MenuItem value="USD">USD</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField label="Reference / Transaction No. *" value={renewForm.referenceNumber}
+                onChange={e => setRenewForm(f => ({ ...f, referenceNumber: e.target.value }))}
+                size="small" fullWidth placeholder="e.g. 1234567890" />
+            </Grid>
+            <Grid item xs={12}>
+              <FormControl size="small" fullWidth>
+                <InputLabel>Payment Method</InputLabel>
+                <Select label="Payment Method" value={renewForm.paymentMethod}
+                  onChange={e => setRenewForm(f => ({ ...f, paymentMethod: e.target.value }))}>
+                  <MenuItem value="GCash">GCash</MenuItem>
+                  <MenuItem value="Maya">Maya</MenuItem>
+                  <MenuItem value="BPI Transfer">BPI Transfer</MenuItem>
+                  <MenuItem value="BDO Transfer">BDO Transfer</MenuItem>
+                  <MenuItem value="QR Ph">QR Ph</MenuItem>
+                  <MenuItem value="Cash">Cash</MenuItem>
+                  <MenuItem value="Other">Other</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField label="Note (optional)" value={renewForm.tenantNote}
+                onChange={e => setRenewForm(f => ({ ...f, tenantNote: e.target.value }))}
+                size="small" fullWidth multiline rows={2}
+                placeholder="e.g. Paying for June 2026" />
+            </Grid>
+            <Grid item xs={12}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Proof of Payment (screenshot / receipt)
+              </Typography>
+              <input ref={fileRef} type="file" accept="image/*,application/pdf"
+                style={{ display: 'none' }}
+                onChange={e => setRenewFile(e.target.files?.[0] || null)} />
+              <Button variant="outlined" size="small" onClick={() => fileRef.current.click()}>
+                {renewFile ? renewFile.name : 'Upload Screenshot / PDF'}
+              </Button>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRenewOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleRenewSubmit} disabled={renewSaving}
+            startIcon={renewSaving ? <CircularProgress size={16} /> : <Payments />}>
+            {renewSaving ? 'Submitting…' : 'Submit Payment'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

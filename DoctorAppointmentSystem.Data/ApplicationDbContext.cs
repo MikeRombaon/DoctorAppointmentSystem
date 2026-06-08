@@ -18,6 +18,7 @@ public class ApplicationDbContext : DbContext
     // Multi-Tenant
     public DbSet<Tenant> Tenants { get; set; }
     public DbSet<SubscriptionPaymentLog> SubscriptionPaymentLogs { get; set; }
+    public DbSet<SubscriptionPayment> SubscriptionPayments { get; set; }
 
     // Patient Management
     public DbSet<Patient> Patients { get; set; }
@@ -119,6 +120,25 @@ public class ApplicationDbContext : DbContext
                 .HasForeignKey(e => e.TenantId)
                 .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(e => e.TenantId);
+        });
+
+        // ── SubscriptionPayment Configuration ─────────────────────────────────────
+        modelBuilder.Entity<SubscriptionPayment>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.AmountPaid).HasPrecision(18, 2);
+            entity.Property(e => e.Currency).HasMaxLength(10).HasDefaultValue("PHP");
+            entity.Property(e => e.ReferenceNumber).HasMaxLength(100);
+            entity.Property(e => e.PaymentMethod).HasMaxLength(50);
+            entity.Property(e => e.ProofOfPaymentPath).HasMaxLength(500);
+            entity.Property(e => e.TenantNote).HasMaxLength(500);
+            entity.Property(e => e.RejectionNote).HasMaxLength(500);
+            entity.HasOne(e => e.Tenant)
+                .WithMany()
+                .HasForeignKey(e => e.TenantId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => e.TenantId);
+            entity.HasIndex(e => e.Status);
         });
 
         // ── Global Tenant Query Filters ───────────────────────────────────────────

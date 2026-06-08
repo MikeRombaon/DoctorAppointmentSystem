@@ -1,0 +1,52 @@
+# Copy this file to terraform.tfvars and fill in your actual values.
+# NEVER commit terraform.tfvars to source control (it contains secrets).
+
+# ─── AWS ──────────────────────────────────────────────────────────────────────
+aws_region  = "ap-southeast-1"
+app_name    = "das"
+environment = "production"
+
+# ─── Domain ───────────────────────────────────────────────────────────────────
+domain_name     = "das.mikromsolutions.com"
+route53_zone_id = "Z0123456789ABCDEFGHIJ"   # Route53 hosted zone for mikromsolutions.com
+
+# ─── Existing HIS VPC / Networking ────────────────────────────────────────────
+his_vpc_id = "vpc-0abc1234def567890"
+
+# ALB needs at least 2 public subnets in different AZs
+his_public_subnet_ids = [
+  "subnet-0pub1111aaaabbbb",
+  "subnet-0pub2222ccccdddd"
+]
+
+# ECS tasks and RDS go into private subnets
+his_private_subnet_ids = [
+  "subnet-0priv1111eeeeFFFF",
+  "subnet-0priv2222GGGGHHH"
+]
+
+# HIS application-tier security group (used to scope inbound rules)
+his_app_security_group_id = "sg-0abc123456789def0"
+
+# ─── Container ────────────────────────────────────────────────────────────────
+container_port    = 8080
+ecs_task_cpu      = 512    # 0.5 vCPU
+ecs_task_memory   = 1024   # 1 GB
+ecs_desired_count = 1
+
+# ─── RDS — SQL Server Express t3.micro ────────────────────────────────────────
+db_instance_class    = "db.t3.micro"
+db_name              = "DASProductionDB"
+db_username          = "dasadmin"
+db_password          = "Ch@ng3Me!Strong1"   # Min 8 chars, no @/"/ or spaces
+db_allocated_storage = 20
+db_multi_az          = false
+
+# ─── Application Secrets ──────────────────────────────────────────────────────
+jwt_secret_key = "ReplaceWithA32CharMinimumSecretKeyForJWT!"
+
+# SMTP (optional — leave blank to disable email)
+smtp_host     = "smtp.gmail.com"
+smtp_port     = "587"
+smtp_username = "noreply@mikromsolutions.com"
+smtp_password = "your-app-password-here"

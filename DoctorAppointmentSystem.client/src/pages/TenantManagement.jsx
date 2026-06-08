@@ -4,7 +4,7 @@ import {
   TableBody, TableContainer, Chip, IconButton, Tooltip, Button,
   Dialog, DialogTitle, DialogContent, DialogActions, TextField,
   MenuItem, CircularProgress, Alert, Stack, InputAdornment,
-  Tabs, Tab, Divider,
+  Tabs, Tab, Divider, Badge,
 } from '@mui/material';
 import qrphPayment from '../assets/qrph-payment.png';
 import EditIcon from '@mui/icons-material/Edit';
@@ -12,6 +12,10 @@ import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import BusinessIcon from '@mui/icons-material/Business';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import CancelIcon from '@mui/icons-material/Cancel';
+import PaymentsIcon from '@mui/icons-material/Payments';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { toast } from 'react-toastify';
 import tenantService from '../services/tenantService';
 import { format, parseISO } from 'date-fns';
@@ -74,7 +78,47 @@ export default function TenantManagement() {
     }
   }, []);
 
+  // ── Payments state ──────────────────────────────────────────────────────
+  const [payments, setPayments] = useState([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [reviewDialog, setReviewDialog] = useState(null); // { payment }
+  const [reviewForm, setReviewForm] = useState({ extensionMonths: 1, rejectionNote: '' });
+  const [reviewSaving, setReviewSaving] = useState(false);
+  const [mainTab, setMainTab] = useState(0); // 0=Tenants, 1=Payments
+
+  const loadPayments = useCallback(async () => {
+    setPaymentsLoading(true);
+    try {
+      const data = await tenantService.getPayments('');
+      setPayments(data);
+    } catch {
+      toast.error('Failed to load payments.');
+    } finally {
+      setPaymentsLoading(false);
+    }
+  }, []);
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (mainTab === 1) loadPayments(); }, [mainTab, loadPayments]);
+
+  const handleReview = async (approve) => {
+    setReviewSaving(true);
+    try {
+      await tenantService.reviewPayment(reviewDialog.id, {
+        approve,
+        extensionMonths: approve ? reviewForm.extensionMonths : undefined,
+        rejectionNote: !approve ? reviewForm.rejectionNote : undefined,
+      });
+      toast.success(approve ? 'Payment approved — subscription extended!' : 'Payment rejected.');
+      setReviewDialog(null);
+      loadPayments();
+      load(); // refresh tenant table too
+    } catch {
+      toast.error('Failed to review payment.');
+    } finally {
+      setReviewSaving(false);
+    }
+  };
 
   // ── dialog helpers ──────────────────────────────────────────────────────
   const openDialog = (tenant) => {
@@ -129,6 +173,8 @@ export default function TenantManagement() {
   };
 
   // ── render ──────────────────────────────────────────────────────────────
+  const pendingCount = payments.filter(p => p.status === 'Pending').length;
+
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       {/* Header */}
@@ -146,7 +192,7 @@ export default function TenantManagement() {
         </Box>
         <Button
           startIcon={<RefreshIcon />}
-          onClick={load}
+          onClick={mainTab === 0 ? load : loadPayments}
           variant="outlined"
           size="small"
           sx={{ borderRadius: 2, textTransform: 'none' }}
@@ -155,6 +201,18 @@ export default function TenantManagement() {
         </Button>
       </Stack>
 
+      {/* Main tabs */}
+      <Tabs value={mainTab} onChange={(_, v) => setMainTab(v)} sx={{ mb: 2 }}>
+        <Tab label="Tenants" />
+        <Tab label={
+          <Badge badgeContent={pendingCount} color="error" sx={{ pr: pendingCount ? 1.5 : 0 }}>
+            <Box display="flex" alignItems="center" gap={0.5}><PaymentsIcon fontSize="small" /> Subscription Payments</Box>
+          </Badge>
+        } />
+      </Tabs>
+
+      {/* ── Tab 0: Tenants ─────────────────────────────────────────────── */}
+      {mainTab === 0 && (<>
       {/* Summary chips */}
       {!loading && !error && (
         <Stack direction="row" spacing={1.5} mb={3} flexWrap="wrap">
@@ -277,6 +335,134 @@ export default function TenantManagement() {
           </Table>
         </TableContainer>
       )}
+
+      </>)}
+
+      {/* ── Tab 1: Subscription Payments ───────────────────────────────── */}
+      {mainTab === 1 && (
+        <Box>
+          {paymentsLoading ? (
+            <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>
+          ) : (
+            <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: '#f7f8fc' }}>
+                    {['Clinic', 'Submitted', 'Amount', 'Method', 'Reference', 'Note', 'Status', 'Proof', 'Actions'].map(h => (
+                      <TableCell key={h} sx={{ fontWeight: 700, fontSize: '0.78rem', color: '#4a5568', py: 1.5 }}>{h}</TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {payments.length === 0 && (
+                    <TableRow><TableCell colSpan={9} align="center" sx={{ py: 4, color: '#718096' }}>No payment submissions yet.</TableCell></TableRow>
+                  )}
+                  {payments.map(p => (
+                    <TableRow key={p.id} sx={{ '&:hover': { bgcolor: '#f7f8fc' } }}>
+                      <TableCell sx={{ fontWeight: 600 }}>{p.tenantName}</TableCell>
+                      <TableCell sx={{ fontSize: '0.8rem', color: '#718096' }}>{fmtDate(p.submittedAt)}</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>{p.currency} {Number(p.amountPaid).toLocaleString()}</TableCell>
+                      <TableCell>{p.paymentMethod}</TableCell>
+                      <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{p.referenceNumber}</TableCell>
+                      <TableCell sx={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.tenantNote || '—'}</TableCell>
+                      <TableCell>
+                        <Chip size="small" label={p.status}
+                          color={p.status === 'Approved' ? 'success' : p.status === 'Rejected' ? 'error' : 'warning'}
+                          sx={{ fontWeight: 700, fontSize: '0.72rem' }} />
+                      </TableCell>
+                      <TableCell>
+                        {p.proofOfPaymentPath ? (
+                          <Tooltip title="View proof">
+                            <IconButton size="small" onClick={() => window.open(p.proofOfPaymentPath, '_blank')}>
+                              <OpenInNewIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        ) : '—'}
+                      </TableCell>
+                      <TableCell>
+                        {p.status === 'Pending' && (
+                          <Stack direction="row" spacing={0.5}>
+                            <Tooltip title="Approve">
+                              <IconButton size="small" color="success" onClick={() => { setReviewDialog(p); setReviewForm({ extensionMonths: 1, rejectionNote: '' }); }}>
+                                <CheckCircleIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Reject">
+                              <IconButton size="small" color="error" onClick={() => { setReviewDialog({ ...p, _reject: true }); setReviewForm({ extensionMonths: 1, rejectionNote: '' }); }}>
+                                <CancelIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
+                        )}
+                        {p.status !== 'Pending' && (
+                          <Typography variant="caption" color="text.secondary">
+                            {fmtDate(p.reviewedAt)}
+                          </Typography>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </Box>
+      )}
+
+      {/* ── Review Dialog ──────────────────────────────────────────────── */}
+      <Dialog open={!!reviewDialog} onClose={() => setReviewDialog(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>{reviewDialog?._reject ? 'Reject Payment' : 'Approve Payment'}</DialogTitle>
+        <DialogContent dividers>
+          {reviewDialog && (
+            <Box>
+              <Typography variant="body2" sx={{ mb: 2 }}>
+                <strong>{reviewDialog.tenantName}</strong> — {reviewDialog.currency} {Number(reviewDialog.amountPaid).toLocaleString()} via {reviewDialog.paymentMethod}
+                <br /><em>Ref: {reviewDialog.referenceNumber}</em>
+              </Typography>
+              {!reviewDialog._reject ? (
+                <TextField
+                  label="Extension (months)"
+                  type="number"
+                  size="small"
+                  fullWidth
+                  value={reviewForm.extensionMonths}
+                  onChange={e => setReviewForm(f => ({ ...f, extensionMonths: parseInt(e.target.value) || 1 }))}
+                  inputProps={{ min: 1, max: 24 }}
+                  helperText="How many months to add to the tenant's subscription"
+                />
+              ) : (
+                <TextField
+                  label="Rejection Reason *"
+                  size="small"
+                  fullWidth
+                  multiline
+                  rows={3}
+                  value={reviewForm.rejectionNote}
+                  onChange={e => setReviewForm(f => ({ ...f, rejectionNote: e.target.value }))}
+                  placeholder="e.g. Reference number not found in our records"
+                />
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReviewDialog(null)}>Cancel</Button>
+          {reviewDialog && !reviewDialog._reject && (
+            <Button variant="contained" color="success" disabled={reviewSaving}
+              startIcon={reviewSaving ? <CircularProgress size={16} /> : <CheckCircleIcon />}
+              onClick={() => handleReview(true)}>
+              {reviewSaving ? 'Approving…' : `Approve (+${reviewForm.extensionMonths} month${reviewForm.extensionMonths > 1 ? 's' : ''})`}
+            </Button>
+          )}
+          {reviewDialog?._reject && (
+            <Button variant="contained" color="error" disabled={reviewSaving || !reviewForm.rejectionNote}
+              startIcon={reviewSaving ? <CircularProgress size={16} /> : <CancelIcon />}
+              onClick={() => handleReview(false)}>
+              {reviewSaving ? 'Rejecting…' : 'Reject Payment'}
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
 
       {/* Edit Subscription Dialog */}
       <Dialog open={open} onClose={closeDialog} maxWidth="sm" fullWidth

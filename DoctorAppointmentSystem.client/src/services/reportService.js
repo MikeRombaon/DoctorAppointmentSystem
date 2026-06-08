@@ -77,6 +77,9 @@ export const reportService = {
     return response.data;
   },
 
+  // Alias used by Reports.jsx
+  getDentistPerformance: async (args) => reportService.getDoctorPerformance(args),
+
   getProcedureFrequency: async ({ from, to } = {}) => {
     const params = {};
     if (from) params.from = from;

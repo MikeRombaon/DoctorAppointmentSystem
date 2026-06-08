@@ -58,6 +58,14 @@ export const isStaffRole = (role) => {
   return [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff].includes(role);
 };
 
+// Helper: split "First Last" → { firstName, lastName }
+const splitFullName = (fullName = '') => {
+  const parts = (fullName || '').trim().split(/\s+/);
+  const firstName = parts[0] || '';
+  const lastName = parts.slice(1).join(' ') || '';
+  return { firstName, lastName };
+};
+
 export const userService = {
   getAll: async (page = 1, pageSize = 10, role = null, isActive = null) => {
     const params = { page, pageSize };
@@ -73,8 +81,27 @@ export const userService = {
     return response.data;
   },
 
+  create: async (userData) => {
+    // create goes through auth/register (SuperAdmin/Admin only)
+    const { firstName, lastName } = splitFullName(userData.fullName);
+    const payload = { ...userData, firstName, lastName };
+    delete payload.fullName;
+    const response = await apiClient.post('/auth/register', payload);
+    return response.data;
+  },
+
   update: async (id, userData) => {
-    const response = await apiClient.put(`/users/${id}`, userData);
+    const { firstName, lastName } = splitFullName(userData.fullName);
+    const payload = { ...userData, firstName, lastName };
+    delete payload.fullName;
+    delete payload.password; // update doesn't change password
+    delete payload.isNew;
+    const response = await apiClient.put(`/users/${id}`, payload);
+    return response.data;
+  },
+
+  delete: async (id) => {
+    const response = await apiClient.delete(`/users/${id}`);
     return response.data;
   },
 

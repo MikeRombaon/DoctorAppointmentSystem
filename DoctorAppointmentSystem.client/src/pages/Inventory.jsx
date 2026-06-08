@@ -30,7 +30,7 @@ import {
 import { useFormik } from 'formik';
 import * as yup from 'yup';
 import { toast } from 'react-toastify';
-import inventoryService from '../services/inventoryService';
+import { inventoryService } from '../services/inventoryService';
 
 const validationSchema = yup.object({
   name: yup.string().required('Name is required').max(200),
@@ -44,12 +44,15 @@ const validationSchema = yup.object({
 });
 
 const categories = [
-  'DentalSupplies',
-  'Pharmaceuticals',
-  'Equipment',
-  'Instruments',
+  'DentalInstruments',
+  'Consumables',
+  'Anesthetics',
+  'Medications',
+  'DentalMaterials',
+  'ProtectiveEquipment',
+  'CleaningSupplies',
   'OfficeSupplies',
-  'SterlizationSupplies',
+  'Equipment',
 ];
 
 const stockLevelColor = (quantityOnHand, minimumQuantity) => {
@@ -458,6 +461,12 @@ const Inventory = () => {
                     error={formik.touched.category && Boolean(formik.errors.category)}
                     label="Category"
                   >
+                    {/* include current value if it's not in the enum list (legacy data) */}
+                    {formik.values.category && !categories.includes(formik.values.category) && (
+                      <MenuItem key={formik.values.category} value={formik.values.category}>
+                        {formik.values.category} (legacy)
+                      </MenuItem>
+                    )}
                     {categories.map((cat) => (
                       <MenuItem key={cat} value={cat}>
                         {cat}
@@ -484,7 +493,13 @@ const Inventory = () => {
                   value={formik.values.quantityOnHand}
                   onChange={formik.handleChange}
                   error={formik.touched.quantityOnHand && Boolean(formik.errors.quantityOnHand)}
-                  helperText={formik.touched.quantityOnHand && formik.errors.quantityOnHand}
+                  helperText={
+                    editingItem
+                      ? 'Use Receive / Issue buttons to change stock'
+                      : (formik.touched.quantityOnHand && formik.errors.quantityOnHand)
+                  }
+                  InputProps={{ readOnly: Boolean(editingItem) }}
+                  disabled={Boolean(editingItem)}
                 />
               </Grid>
               <Grid item xs={4}>

@@ -34,6 +34,11 @@ export const invoiceService = {
     const response = await apiClient.get('/invoices/overdue');
     return response.data;
   },
+
+  delete: async (id) => {
+    const response = await apiClient.delete(`/invoices/${id}`);
+    return response.data;
+  },
 };
 
 export default invoiceService;

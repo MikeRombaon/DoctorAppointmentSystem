@@ -7,7 +7,12 @@ import {
   MenuItem, FormControl, InputLabel, Tooltip, TablePagination, InputAdornment,
   Divider,
 } from '@mui/material';
-import { Add, Delete, Refresh, Search, Visibility, LocalShipping } from '@mui/icons-material';
+import { Add, Delete, Refresh, Search, Visibility, LocalShipping, AddCircle } from '@mui/icons-material';
+
+const ITEM_CATEGORIES = [
+  'DentalInstruments', 'Consumables', 'Anesthetics', 'Medications',
+  'DentalMaterials', 'ProtectiveEquipment', 'CleaningSupplies', 'OfficeSupplies', 'Equipment',
+];
 import { purchaseOrderService } from '../services/purchaseOrderService';
 import { inventoryService } from '../services/inventoryService';
 
@@ -39,6 +44,14 @@ export default function PurchaseOrders() {
   // Receive dialog
   const [receiveOpen, setReceiveOpen] = useState(false);
   const [receiveQtys, setReceiveQtys] = useState({});
+
+  // Quick-add new inventory item
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddLineIdx, setQuickAddLineIdx] = useState(null);
+  const [quickAddSaving, setQuickAddSaving] = useState(false);
+  const [quickAddError, setQuickAddError] = useState('');
+  const emptyQuickAdd = { name: '', sku: '', category: '', unit: '', unitCost: '', quantityOnHand: 0, minimumQuantity: 0, reorderQuantity: 0, description: '' };
+  const [quickAddForm, setQuickAddForm] = useState(emptyQuickAdd);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -113,6 +126,44 @@ export default function PurchaseOrders() {
   const handleStatusChange = async (id, status) => {
     try { await purchaseOrderService.updateStatus(id, status); setSuccess(`Status updated to ${status}.`); load(); }
     catch { setError('Status update failed.'); }
+  };
+
+  const openQuickAdd = (lineIdx) => {
+    setQuickAddLineIdx(lineIdx);
+    setQuickAddForm(emptyQuickAdd);
+    setQuickAddError('');
+    setQuickAddOpen(true);
+  };
+
+  const handleQuickAddSave = async () => {
+    const { name, sku, category, unit, unitCost, quantityOnHand, minimumQuantity, reorderQuantity } = quickAddForm;
+    if (!name || !sku || !category || !unit) {
+      setQuickAddError('Name, SKU, Category and Unit are required.'); return;
+    }
+    setQuickAddSaving(true);
+    try {
+      const created = await inventoryService.createItem({
+        name, sku, category, unit,
+        unitCost: Number(unitCost) || 0,
+        quantityOnHand: Number(quantityOnHand) || 0,
+        minimumQuantity: Number(minimumQuantity) || 0,
+        reorderQuantity: Number(reorderQuantity) || 0,
+        description: quickAddForm.description,
+        isActive: true,
+      });
+      // Refresh inventory list and auto-select the new item on the target line
+      const refreshed = await inventoryService.getAll(1, 200);
+      setInventoryItems(refreshed.items || []);
+      if (quickAddLineIdx !== null) {
+        updateItem(quickAddLineIdx, 'inventoryItemId', created.id);
+        updateItem(quickAddLineIdx, 'unitCost', created.unitCost || unitCost);
+      }
+      setQuickAddOpen(false);
+    } catch (err) {
+      setQuickAddError(err?.response?.data?.message || 'Failed to create item.');
+    } finally {
+      setQuickAddSaving(false);
+    }
   };
 
   const filtered = orders.filter(o =>
@@ -233,6 +284,11 @@ export default function PurchaseOrders() {
                     {inventoryItems.map(it => <MenuItem key={it.id} value={it.id}>{it.name} ({it.sku})</MenuItem>)}
                   </Select>
                 </FormControl>
+                <Tooltip title="Add new item not in list">
+                  <IconButton size="small" color="primary" onClick={() => openQuickAdd(i)}>
+                    <AddCircle fontSize="small" />
+                  </IconButton>
+                </Tooltip>
                 <TextField label="Qty" type="number" size="small" value={item.quantity}
                   onChange={e => updateItem(i, 'quantity', e.target.value)} sx={{ width: 80 }} inputProps={{ min: 1 }} />
                 <TextField label="Unit Cost" type="number" size="small" value={item.unitCost}
@@ -253,6 +309,58 @@ export default function PurchaseOrders() {
           <Button variant="contained" onClick={handleCreate} disabled={saving}
             startIcon={saving ? <CircularProgress size={16} /> : <Add />}>
             {saving ? 'Creating…' : 'Create PO'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Quick-Add Inventory Item Dialog */}
+      <Dialog open={quickAddOpen} onClose={() => setQuickAddOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Add New Inventory Item</DialogTitle>
+        <DialogContent>
+          <Box display="flex" flexDirection="column" gap={2} pt={1}>
+            {quickAddError && <Alert severity="error">{quickAddError}</Alert>}
+            <Box display="flex" gap={2}>
+              <TextField label="Item Name *" size="small" fullWidth value={quickAddForm.name}
+                onChange={e => setQuickAddForm(f => ({ ...f, name: e.target.value }))} />
+              <TextField label="SKU *" size="small" sx={{ width: 160 }} value={quickAddForm.sku}
+                onChange={e => setQuickAddForm(f => ({ ...f, sku: e.target.value }))} />
+            </Box>
+            <Box display="flex" gap={2}>
+              <FormControl size="small" sx={{ flex: 1 }}>
+                <InputLabel>Category *</InputLabel>
+                <Select value={quickAddForm.category} label="Category *"
+                  onChange={e => setQuickAddForm(f => ({ ...f, category: e.target.value }))}>
+                  {ITEM_CATEGORIES.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                </Select>
+              </FormControl>
+              <TextField label="Unit *" size="small" placeholder="e.g. box, tablet, vial" sx={{ flex: 1 }}
+                value={quickAddForm.unit} onChange={e => setQuickAddForm(f => ({ ...f, unit: e.target.value }))} />
+            </Box>
+            <Box display="flex" gap={2}>
+              <TextField label="Unit Cost" size="small" type="number" sx={{ flex: 1 }}
+                value={quickAddForm.unitCost} onChange={e => setQuickAddForm(f => ({ ...f, unitCost: e.target.value }))}
+                inputProps={{ min: 0, step: 0.01 }} />
+              <TextField label="Opening Qty" size="small" type="number" sx={{ flex: 1 }}
+                value={quickAddForm.quantityOnHand} onChange={e => setQuickAddForm(f => ({ ...f, quantityOnHand: e.target.value }))}
+                inputProps={{ min: 0 }} />
+            </Box>
+            <Box display="flex" gap={2}>
+              <TextField label="Min Qty (reorder alert)" size="small" type="number" sx={{ flex: 1 }}
+                value={quickAddForm.minimumQuantity} onChange={e => setQuickAddForm(f => ({ ...f, minimumQuantity: e.target.value }))}
+                inputProps={{ min: 0 }} />
+              <TextField label="Reorder Qty" size="small" type="number" sx={{ flex: 1 }}
+                value={quickAddForm.reorderQuantity} onChange={e => setQuickAddForm(f => ({ ...f, reorderQuantity: e.target.value }))}
+                inputProps={{ min: 0 }} />
+            </Box>
+            <TextField label="Description" size="small" multiline rows={2} fullWidth
+              value={quickAddForm.description} onChange={e => setQuickAddForm(f => ({ ...f, description: e.target.value }))} />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setQuickAddOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleQuickAddSave} disabled={quickAddSaving}
+            startIcon={quickAddSaving ? <CircularProgress size={16} /> : <Add />}>
+            {quickAddSaving ? 'Saving…' : 'Create & Select'}
           </Button>
         </DialogActions>
       </Dialog>

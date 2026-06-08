@@ -26,6 +26,7 @@ import ConsentForms from '../pages/ConsentForms';
 import Prescriptions from '../pages/Prescriptions';
 // Phase 2 - Financial
 import Insurance from '../pages/Insurance';
+import Subscription from '../pages/Subscription';
 import Estimates from '../pages/Estimates';
 import Claims from '../pages/Claims';
 import Statements from '../pages/Statements';
@@ -115,6 +116,10 @@ const AppRoutes = () => {
       </Route>
 
       {/* Phase 2 - Financial */}
+      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.SUBSCRIPTION} />}>
+        <Route path={ROUTES.SUBSCRIPTION} element={<Subscription />} />
+      </Route>
+
       <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.INSURANCE} />}>
         <Route path={ROUTES.INSURANCE} element={<Insurance />} />
       </Route>

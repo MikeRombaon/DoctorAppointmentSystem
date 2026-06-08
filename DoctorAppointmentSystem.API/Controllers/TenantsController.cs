@@ -272,6 +272,130 @@ public class TenantsController : ControllerBase
         await _context.SaveChangesAsync();
         return Ok(new { tenant.Id, tenant.IsActive });
     }
+
+    // ─── Subscription Payment Endpoints ──────────────────────────────────────
+
+    /// <summary>Tenant admin submits proof-of-payment. Optionally uploads a file.</summary>
+    [HttpPost("{id:int}/payments")]
+    [AllowAnonymous] // Accessible to tenant admins too (they are not SuperAdmin)
+    public async Task<IActionResult> SubmitPayment(int id, [FromForm] SubmitPaymentDto dto, IFormFile? proofFile)
+    {
+        var tenant = await _context.Tenants.FindAsync(id);
+        if (tenant == null) return NotFound();
+
+        string? proofPath = null;
+        if (proofFile != null && proofFile.Length > 0)
+        {
+            var uploadsDir = Path.Combine("wwwroot", "uploads", "payments");
+            Directory.CreateDirectory(uploadsDir);
+            var fileName = $"{id}_{DateTime.UtcNow:yyyyMMddHHmmss}_{Path.GetFileName(proofFile.FileName)}";
+            var filePath = Path.Combine(uploadsDir, fileName);
+            await using var stream = System.IO.File.Create(filePath);
+            await proofFile.CopyToAsync(stream);
+            proofPath = $"/uploads/payments/{fileName}";
+        }
+
+        var payment = new SubscriptionPayment
+        {
+            TenantId        = id,
+            AmountPaid      = dto.AmountPaid,
+            Currency        = dto.Currency ?? "PHP",
+            ReferenceNumber = dto.ReferenceNumber,
+            PaymentMethod   = dto.PaymentMethod,
+            TenantNote      = dto.TenantNote,
+            ProofOfPaymentPath = proofPath,
+            Status          = SubscriptionPaymentStatus.Pending,
+            SubmittedAt     = DateTime.UtcNow,
+        };
+        _context.SubscriptionPayments.Add(payment);
+        await _context.SaveChangesAsync();
+
+        return Ok(new { payment.Id, payment.Status, payment.SubmittedAt, payment.ProofOfPaymentPath });
+    }
+
+    /// <summary>SuperAdmin lists all pending (or all) subscription payments.</summary>
+    [HttpGet("payments")]
+    public async Task<IActionResult> GetPayments([FromQuery] string? status)
+    {
+        var query = _context.SubscriptionPayments
+            .Include(p => p.Tenant)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<SubscriptionPaymentStatus>(status, true, out var s))
+            query = query.Where(p => p.Status == s);
+
+        var list = await query
+            .OrderByDescending(p => p.SubmittedAt)
+            .Select(p => new
+            {
+                p.Id,
+                p.TenantId,
+                TenantName       = p.Tenant.Name,
+                TenantSlug       = p.Tenant.Slug,
+                p.AmountPaid,
+                p.Currency,
+                p.ReferenceNumber,
+                p.PaymentMethod,
+                p.TenantNote,
+                p.ProofOfPaymentPath,
+                p.Status,
+                p.SubmittedAt,
+                p.ReviewedAt,
+                p.ExtensionMonths,
+                p.RejectionNote,
+                CurrentExpiry    = p.Tenant.SubscriptionExpiresAt,
+            })
+            .ToListAsync();
+
+        return Ok(list);
+    }
+
+    /// <summary>SuperAdmin approves or rejects a payment. Approval extends subscription.</summary>
+    [HttpPost("payments/{paymentId:int}/review")]
+    public async Task<IActionResult> ReviewPayment(int paymentId, [FromBody] ReviewPaymentDto dto)
+    {
+        var payment = await _context.SubscriptionPayments
+            .Include(p => p.Tenant)
+            .FirstOrDefaultAsync(p => p.Id == paymentId);
+
+        if (payment == null) return NotFound();
+        if (payment.Status != SubscriptionPaymentStatus.Pending)
+            return BadRequest(new { message = "Payment has already been reviewed." });
+
+        payment.ReviewedAt = DateTime.UtcNow;
+
+        if (dto.Approve)
+        {
+            var months = dto.ExtensionMonths ?? 1;
+            payment.ExtensionMonths = months;
+            payment.Status = SubscriptionPaymentStatus.Approved;
+
+            var tenant = payment.Tenant;
+            var baseDate = (tenant.SubscriptionExpiresAt.HasValue && tenant.SubscriptionExpiresAt > DateTime.UtcNow)
+                ? tenant.SubscriptionExpiresAt.Value
+                : DateTime.UtcNow;
+            tenant.SubscriptionExpiresAt = baseDate.AddMonths(months);
+            tenant.SubscriptionPlan      = "Monthly";
+            tenant.ExpiryWarningSent     = false;
+            tenant.ExpiryNotificationSent = false;
+            tenant.ModifiedDate          = DateTime.UtcNow;
+        }
+        else
+        {
+            payment.Status        = SubscriptionPaymentStatus.Rejected;
+            payment.RejectionNote = dto.RejectionNote;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new
+        {
+            payment.Id,
+            payment.Status,
+            payment.ReviewedAt,
+            NewExpiry = payment.Tenant.SubscriptionExpiresAt,
+        });
+    }
 }
 
 public record TenantDto(
@@ -313,4 +437,19 @@ public record TenantRegistrationDto(
 public record TenantRenewalDto(
     string Email,
     string PaymentReference
+);
+
+// ─── Subscription Payment DTOs ────────────────────────────────────────────────
+public record SubmitPaymentDto(
+    decimal AmountPaid,
+    string? Currency,
+    string? ReferenceNumber,
+    string? PaymentMethod,
+    string? TenantNote
+);
+
+public record ReviewPaymentDto(
+    bool Approve,
+    int? ExtensionMonths,
+    string? RejectionNote
 );
