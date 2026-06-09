@@ -455,6 +455,30 @@ export default function RegisterTenant() {
               Sign in
             </Link>
           </Typography>
+
+          <Box sx={{ mt: 2.5, p: 2, bgcolor: '#f0f4ff', borderRadius: 2, border: '1px solid #d0ddf7' }}>
+            <Typography sx={{ textAlign: 'center', color: '#4a5568', fontSize: '0.82rem', lineHeight: 1.8 }}>
+              Need a demo or support?{' '}
+              <Box component="span" sx={{ display: { xs: 'block', sm: 'inline' } }}>
+                Email us at{' '}
+                <a
+                  href="mailto:mikromtelsupplies@gmail.com"
+                  style={{ color: BRAND.primary, fontWeight: 600, textDecoration: 'none' }}
+                >
+                  mikromtelsupplies@gmail.com
+                </a>
+              </Box>
+              {' '}or visit{' '}
+              <a
+                href="https://mikromsolutions.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: BRAND.primary, fontWeight: 600, textDecoration: 'none' }}
+              >
+                mikromsolutions.com
+              </a>
+            </Typography>
+          </Box>
         </Paper>
 
         <Typography sx={{ textAlign: 'center', mt: 3, color: '#a0aec0', fontSize: '0.75rem' }}>
