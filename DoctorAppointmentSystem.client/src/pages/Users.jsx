@@ -19,11 +19,12 @@ import {
   Tooltip,
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
-import { Add as AddIcon, Block as BlockIcon, CheckCircle as CheckCircleIcon } from '@mui/icons-material';
+import { Add as AddIcon, Block as BlockIcon, CheckCircle as CheckCircleIcon, LockReset as LockResetIcon } from '@mui/icons-material';
 import { useFormik } from 'formik';
 import * as yup from 'yup';
 import { toast } from 'react-toastify';
 import userService, { UserRoles, RoleDisplayInfo, getRoleDisplayName } from '../services/userService';
+import { useAuth } from '../contexts/AuthContext';
 
 const validationSchema = yup.object({
   fullName: yup.string().required('Full name is required').max(200),
@@ -79,6 +80,9 @@ const roleColors = {
 };
 
 const Users = () => {
+  const { isAdmin, isSuperAdmin } = useAuth();
+  const canResetPassword = isAdmin() || isSuperAdmin();
+
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
@@ -86,6 +90,14 @@ const Users = () => {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
+
+  const [resetPasswordDialog, setResetPasswordDialog] = useState({
+    open: false,
+    userId: null,
+    userName: '',
+    password: '',
+    error: '',
+  });
 
   const formik = useFormik({
     initialValues: {
@@ -179,6 +191,29 @@ const Users = () => {
     }
   };
 
+  const handleOpenResetPassword = (user) => {
+    setResetPasswordDialog({ open: true, userId: user.id, userName: user.fullName, password: '', error: '' });
+  };
+
+  const handleCloseResetPassword = () => {
+    setResetPasswordDialog({ open: false, userId: null, userName: '', password: '', error: '' });
+  };
+
+  const handleResetPasswordSubmit = async () => {
+    if (!resetPasswordDialog.password || resetPasswordDialog.password.length < 8) {
+      setResetPasswordDialog((prev) => ({ ...prev, error: 'Password must be at least 8 characters' }));
+      return;
+    }
+    try {
+      await userService.resetPassword(resetPasswordDialog.userId, resetPasswordDialog.password);
+      toast.success('Password reset successfully');
+      handleCloseResetPassword();
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      toast.error(error.response?.data?.message || 'Error resetting password');
+    }
+  };
+
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       try {
@@ -232,7 +267,7 @@ const Users = () => {
     {
       field: 'actions',
       headerName: 'Actions',
-      width: 250,
+      width: canResetPassword ? 340 : 250,
       sortable: false,
       renderCell: (params) => (
         <Box>
@@ -246,6 +281,16 @@ const Users = () => {
           >
             {params.row.isActive ? 'Deactivate' : 'Activate'}
           </Button>
+          {canResetPassword && (
+            <Button
+              size="small"
+              color="info"
+              startIcon={<LockResetIcon />}
+              onClick={() => handleOpenResetPassword(params.row)}
+            >
+              Reset Pwd
+            </Button>
+          )}
           <Button size="small" color="error" onClick={() => handleDelete(params.row.id)}>
             Delete
           </Button>
@@ -401,6 +446,33 @@ const Users = () => {
             </Button>
           </DialogActions>
         </form>
+      </Dialog>
+
+      <Dialog open={resetPasswordDialog.open} onClose={handleCloseResetPassword} maxWidth="xs" fullWidth>
+        <DialogTitle>Reset Password</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            Set a new password for <strong>{resetPasswordDialog.userName}</strong>.
+          </Typography>
+          <TextField
+            fullWidth
+            type="password"
+            label="New Password"
+            autoComplete="new-password"
+            value={resetPasswordDialog.password}
+            onChange={(e) =>
+              setResetPasswordDialog((prev) => ({ ...prev, password: e.target.value, error: '' }))
+            }
+            error={Boolean(resetPasswordDialog.error)}
+            helperText={resetPasswordDialog.error}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseResetPassword}>Cancel</Button>
+          <Button variant="contained" color="warning" onClick={handleResetPasswordSubmit}>
+            Reset Password
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );

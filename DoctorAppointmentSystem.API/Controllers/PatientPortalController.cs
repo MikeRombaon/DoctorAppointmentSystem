@@ -1,3 +1,5 @@
+using DoctorAppointmentSystem.Domain;
+using DoctorAppointmentSystem.Domain.Entities;
 using DoctorAppointmentSystem.Domain.Enums;
 using DoctorAppointmentSystem.Repositories.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -15,10 +17,12 @@ namespace DoctorAppointmentSystem.API.Controllers;
 public class PatientPortalController : ControllerBase
 {
     private readonly IUnitOfWork _uow;
+    private readonly TenantContext _tenantContext;
 
-    public PatientPortalController(IUnitOfWork uow)
+    public PatientPortalController(IUnitOfWork uow, TenantContext tenantContext)
     {
         _uow = uow;
+        _tenantContext = tenantContext;
     }
 
     // ── helpers ──────────────────────────────────────────
@@ -168,4 +172,160 @@ public class PatientPortalController : ControllerBase
 
         return Ok(docs);
     }
+
+    // GET api/portal/availability?doctorId=&date=
+    [HttpGet("availability")]
+    [Authorize(Policy = "CanScheduleOwnAppointments")]
+    public async Task<IActionResult> CheckAvailability([FromQuery] int doctorId, [FromQuery] DateTime date)
+    {
+        if (!await _uow.Users.AnyAsync(u => u.Id == doctorId))
+            return BadRequest(new { message = "Invalid doctor." });
+
+        var dayOfWeek = date.DayOfWeek;
+
+        // 1. Look for a configured weekly schedule; fall back to 09:00-17:00 / 30-min if none
+        var schedule = (await _uow.DentistSchedules.FindAsync(
+                s => s.DentistId == doctorId && s.DayOfWeek == dayOfWeek && s.IsAvailable))
+            .FirstOrDefault();
+
+        var scheduleStart = schedule?.StartTime    ?? new TimeSpan(9, 0, 0);
+        var scheduleEnd   = schedule?.EndTime      ?? new TimeSpan(17, 0, 0);
+        int slotDuration  = schedule?.SlotDurationMinutes ?? 30;
+
+        // 2. All-day blocks (emergency leave, day off, surgery)
+        var blocks = (await _uow.ScheduleBlocks.FindAsync(
+                b => b.DentistId == doctorId && b.BlockDate.Date == date.Date))
+            .ToList();
+
+        var allDayBlock = blocks.FirstOrDefault(b => b.IsAllDay);
+        if (allDayBlock != null)
+            return Ok(new { available = false, slotDurationMinutes = slotDuration, slots = Array.Empty<object>(),
+                reason = $"The doctor is unavailable: {allDayBlock.Reason}" });
+
+        // 3. Active appointments on this day
+        var activeStatuses = new[]
+        {
+            AppointmentStatus.Scheduled, AppointmentStatus.Confirmed,
+            AppointmentStatus.CheckedIn, AppointmentStatus.InProgress, AppointmentStatus.WalkIn
+        };
+        var existingAppts = (await _uow.Appointments.FindAsync(
+                a => a.DentistId == doctorId && a.AppointmentDate.Date == date.Date
+                     && activeStatuses.Contains(a.Status)))
+            .ToList();
+
+        // 4. Generate slots and filter out blocked/booked ones
+        var slots = new List<object>();
+        var current = scheduleStart;
+
+        while (current + TimeSpan.FromMinutes(slotDuration) <= scheduleEnd)
+        {
+            var slotEnd = current + TimeSpan.FromMinutes(slotDuration);
+
+            bool partialBlocked = blocks.Any(b =>
+                !b.IsAllDay && b.StartTime.HasValue && b.EndTime.HasValue &&
+                b.StartTime.Value < slotEnd && b.EndTime.Value > current);
+
+            bool appointmentConflict = existingAppts.Any(a =>
+                a.StartTime < slotEnd && a.EndTime > current);
+
+            if (!partialBlocked && !appointmentConflict)
+                slots.Add(new { startTime = current.ToString(@"hh\:mm"), endTime = slotEnd.ToString(@"hh\:mm") });
+
+            current += TimeSpan.FromMinutes(slotDuration);
+        }
+
+        return Ok(new
+        {
+            available = slots.Count > 0,
+            slotDurationMinutes = slotDuration,
+            slots,
+            reason = slots.Count == 0 ? "No available slots for this doctor on the selected date." : (string?)null
+        });
+    }
+
+    // POST api/portal/appointments
+    [HttpPost("appointments")]
+    [Authorize(Policy = "CanScheduleOwnAppointments")]
+    public async Task<IActionResult> BookAppointment([FromBody] BookAppointmentDto dto)
+    {
+        var patientId = await ResolvePatientIdAsync();
+        if (patientId == null) return NotFound(new { message = "No patient profile linked to this account." });
+
+        if (!await _uow.Users.AnyAsync(u => u.Id == dto.DoctorId))
+            return BadRequest(new { message = "Invalid doctor selected." });
+
+        if (dto.AppointmentDate.Date < DateTime.Today)
+            return BadRequest(new { message = "Appointment date cannot be in the past." });
+
+        if (dto.EndTime <= dto.StartTime)
+            return BadRequest(new { message = "End time must be after start time." });
+
+        // Guard 1: check working-hours window (use default 09:00-17:00 if no schedule configured)
+        var schedule = (await _uow.DentistSchedules.FindAsync(
+                s => s.DentistId == dto.DoctorId && s.DayOfWeek == dto.AppointmentDate.DayOfWeek && s.IsAvailable))
+            .FirstOrDefault();
+
+        var scheduleStart = schedule?.StartTime ?? new TimeSpan(9, 0, 0);
+        var scheduleEnd   = schedule?.EndTime   ?? new TimeSpan(17, 0, 0);
+
+        if (dto.StartTime < scheduleStart || dto.EndTime > scheduleEnd)
+            return BadRequest(new { message = "The selected time is outside the doctor's working hours." });
+
+        // Guard 2: check for day/time blocks (leave, emergency)
+        var blocks = (await _uow.ScheduleBlocks.FindAsync(
+                b => b.DentistId == dto.DoctorId && b.BlockDate.Date == dto.AppointmentDate.Date))
+            .ToList();
+
+        var allDayBlock = blocks.FirstOrDefault(b => b.IsAllDay);
+        if (allDayBlock != null)
+            return BadRequest(new { message = $"The doctor is unavailable on this day: {allDayBlock.Reason}" });
+
+        var partialBlock = blocks.FirstOrDefault(b =>
+            !b.IsAllDay && b.StartTime.HasValue && b.EndTime.HasValue &&
+            b.StartTime.Value < dto.EndTime && b.EndTime.Value > dto.StartTime);
+        if (partialBlock != null)
+            return BadRequest(new { message = $"The doctor is unavailable during this time: {partialBlock.Reason}" });
+
+        // Guard 3: no overlapping active appointments
+        var activeStatuses = new[]
+        {
+            AppointmentStatus.Scheduled, AppointmentStatus.Confirmed,
+            AppointmentStatus.CheckedIn, AppointmentStatus.InProgress, AppointmentStatus.WalkIn
+        };
+        var conflict = (await _uow.Appointments.FindAsync(
+                a => a.DentistId == dto.DoctorId && a.AppointmentDate.Date == dto.AppointmentDate.Date
+                     && activeStatuses.Contains(a.Status)))
+            .Any(a => a.StartTime < dto.EndTime && a.EndTime > dto.StartTime);
+
+        if (conflict)
+            return BadRequest(new { message = "This time slot is no longer available. Please select another." });
+
+        var appointment = new Appointment
+        {
+            PatientId       = patientId.Value,
+            DentistId       = dto.DoctorId,
+            AppointmentDate = dto.AppointmentDate.Date,
+            StartTime       = dto.StartTime,
+            EndTime         = dto.EndTime,
+            Purpose         = dto.Purpose,
+            Notes           = dto.Notes,
+            TenantId        = _tenantContext.TenantId ?? 0,
+            Status          = AppointmentStatus.Scheduled,
+            CreatedDate     = DateTime.UtcNow,
+        };
+
+        await _uow.Appointments.AddAsync(appointment);
+        await _uow.SaveChangesAsync();
+
+        return Ok(new { message = "Appointment booked successfully.", id = appointment.Id });
+    }
 }
+
+public record BookAppointmentDto(
+    int DoctorId,
+    DateTime AppointmentDate,
+    TimeSpan StartTime,
+    TimeSpan EndTime,
+    string Purpose,
+    string? Notes = null
+);

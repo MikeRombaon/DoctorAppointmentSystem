@@ -27,4 +27,16 @@ export const portalService = {
     const response = await apiClient.get('/portal/documents');
     return response.data;
   },
+
+  bookAppointment: async (data) => {
+    const response = await apiClient.post('/portal/appointments', data);
+    return response.data;
+  },
+
+  getAvailability: async (doctorId, date, branchId = null) => {
+    const params = { doctorId, date };
+    if (branchId) params.branchId = branchId;
+    const response = await apiClient.get('/scheduling/slots', { params });
+    return response.data;
+  },
 };
