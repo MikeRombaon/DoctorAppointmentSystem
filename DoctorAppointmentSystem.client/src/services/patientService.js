@@ -25,6 +25,11 @@ export const patientService = {
     return response.data;
   },
 
+  toggleActive: async (id) => {
+    const response = await apiClient.patch(`/patients/${id}/toggle-active`);
+    return response.data;
+  },
+
   delete: async (id) => {
     const response = await apiClient.delete(`/patients/${id}`);
     return response.data;

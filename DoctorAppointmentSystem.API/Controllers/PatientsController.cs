@@ -174,6 +174,20 @@ public class PatientsController : BaseController
         return Ok(existing);
     }
 
+    [HttpPatch("{id}/toggle-active")]
+    public async Task<IActionResult> ToggleActive(int id)
+    {
+        var patient = await _unitOfWork.Patients.GetByIdAsync(id);
+        if (patient == null)
+            return NotFound(new { message = "Patient not found" });
+
+        patient.IsActive = !patient.IsActive;
+        _unitOfWork.Patients.Update(patient);
+        await _unitOfWork.SaveChangesAsync();
+
+        return Ok(new { message = $"Patient {(patient.IsActive ? "activated" : "deactivated")} successfully", isActive = patient.IsActive });
+    }
+
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {

@@ -46,13 +46,9 @@ export default function PatientPortal() {
   const [error, setError] = useState('');
   const [tab, setTab] = useState(0);
 
-  const emptyBook = { doctorId: '', date: '', purpose: '', notes: '' };
+  const emptyBook = { doctorId: '', date: '', startTime: '', endTime: '', purpose: '', notes: '' };
   const [bookDialog, setBookDialog] = useState({ open: false, submitting: false, errors: {}, ...emptyBook });
-  const [selectedSlot, setSelectedSlot] = useState(null);
   const [doctors, setDoctors] = useState([]);
-  const [availableSlots, setAvailableSlots] = useState([]);
-  const [slotsLoading, setSlotsLoading] = useState(false);
-  const [availabilityReason, setAvailabilityReason] = useState('');
 
   const loadPortal = async () => {
     setLoading(true);
@@ -91,43 +87,7 @@ export default function PatientPortal() {
 
   const closeBookDialog = () => {
     setBookDialog({ open: false, submitting: false, errors: {}, ...emptyBook });
-    setSelectedSlot(null);
-    setAvailableSlots([]);
-    setSlotsLoading(false);
-    setAvailabilityReason('');
   };
-
-  // Fetch available slots from /scheduling/slots (same source as doctor-side) whenever
-  // doctor or date changes. selectedSlot is kept in its own state to avoid re-triggering this effect.
-  useEffect(() => {
-    const doctorId = bookDialog.doctorId;
-    const date = bookDialog.date;
-
-    setSelectedSlot(null);
-    setAvailableSlots([]);
-    setAvailabilityReason('');
-
-    if (!doctorId || !date) return;
-
-    let cancelled = false;
-    setSlotsLoading(true);
-
-    portalService.getAvailability(doctorId, date)
-      .then((result) => {
-        if (cancelled) return;
-        const slots = Array.isArray(result.slots) ? result.slots : [];
-        setAvailableSlots(slots);
-        if (!result.available || slots.length === 0)
-          setAvailabilityReason(result.reason || 'No available slots for the selected date.');
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setAvailabilityReason('Could not load availability. Please try again.');
-      })
-      .finally(() => { if (!cancelled) setSlotsLoading(false); });
-
-    return () => { cancelled = true; };
-  }, [bookDialog.doctorId, bookDialog.date]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDoctorChange = (e) => {
     setBookDialog((prev) => ({ ...prev, doctorId: e.target.value, errors: { ...prev.errors, doctorId: undefined } }));
@@ -137,26 +97,28 @@ export default function PatientPortal() {
     setBookDialog((prev) => ({ ...prev, date: e.target.value, errors: { ...prev.errors, date: undefined } }));
   };
 
-  const validateBook = (dialog, slot) => {
+  const validateBook = (dialog) => {
     const errs = {};
     if (!dialog.doctorId) errs.doctorId = 'Please select a doctor';
     if (!dialog.date) errs.date = 'Please select a date';
     else if (new Date(dialog.date) < new Date(new Date().toDateString())) errs.date = 'Date cannot be in the past';
-    if (!slot) errs.selectedSlot = 'Please select a time slot';
+    if (!dialog.startTime) errs.startTime = 'Start time is required';
+    if (!dialog.endTime) errs.endTime = 'End time is required';
+    else if (dialog.startTime && dialog.endTime <= dialog.startTime) errs.endTime = 'End time must be after start time';
     if (!dialog.purpose.trim()) errs.purpose = 'Please enter the reason for your visit';
     return errs;
   };
 
   const handleBookSubmit = async () => {
-    const errs = validateBook(bookDialog, selectedSlot);
+    const errs = validateBook(bookDialog);
     if (Object.keys(errs).length > 0) { setBookDialog((prev) => ({ ...prev, errors: errs })); return; }
     setBookDialog((prev) => ({ ...prev, submitting: true }));
     try {
       await portalService.bookAppointment({
         doctorId: Number(bookDialog.doctorId),
         appointmentDate: bookDialog.date,
-        startTime: selectedSlot.startTime + ':00',
-        endTime: selectedSlot.endTime + ':00',
+        startTime: bookDialog.startTime + ':00',
+        endTime: bookDialog.endTime + ':00',
         purpose: bookDialog.purpose,
         notes: bookDialog.notes || null,
       });
@@ -354,16 +316,28 @@ export default function PatientPortal() {
 
       {/* Book Appointment Dialog */}
       <Dialog open={bookDialog.open} onClose={closeBookDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>Book an Appointment</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 600 }}>Schedule New Appointment</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            {/* Patient — auto-filled, read-only */}
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Patient *"
+                value={summary?.patient?.fullName || ''}
+                InputProps={{ readOnly: true }}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+
+            {/* Doctor */}
             <Grid item xs={12}>
               <FormControl fullWidth error={Boolean(bookDialog.errors.doctorId)}>
-                <InputLabel>Doctor</InputLabel>
+                <InputLabel>Doctor *</InputLabel>
                 <Select
                   value={bookDialog.doctorId}
                   onChange={handleDoctorChange}
-                  label="Doctor"
+                  label="Doctor *"
                 >
                   {doctors.map((d) => (
                     <MenuItem key={d.id} value={d.id}>
@@ -378,11 +352,13 @@ export default function PatientPortal() {
                 )}
               </FormControl>
             </Grid>
+
+            {/* Appointment Date */}
             <Grid item xs={12}>
               <TextField
                 fullWidth
                 type="date"
-                label="Appointment Date"
+                label="Appointment Date *"
                 InputLabelProps={{ shrink: true }}
                 inputProps={{ min: new Date().toISOString().split('T')[0] }}
                 value={bookDialog.date}
@@ -392,90 +368,41 @@ export default function PatientPortal() {
               />
             </Grid>
 
-            {/* Available time slots */}
-            <Grid item xs={12}>
-              {!bookDialog.doctorId || !bookDialog.date ? (
-                <Alert severity="info" sx={{ py: 0.5 }}>Select a doctor and date to see available slots.</Alert>
-              ) : slotsLoading ? (
-                <Box display="flex" alignItems="center" gap={1} py={1}>
-                  <CircularProgress size={18} />
-                  <Typography variant="body2" color="text.secondary">Checking availability…</Typography>
-                </Box>
-              ) : availabilityReason ? (
-                <Alert severity="warning" sx={{ py: 0.5 }}>
-                  {availabilityReason}
-                </Alert>
-              ) : (
-                <Box>
-                  <Typography variant="body2" fontWeight={500} gutterBottom>
-                    {availableSlots.length} slot{availableSlots.length !== 1 ? 's' : ''} available — select one:
-                  </Typography>
-
-                  {/* Morning slots */}
-                  {availableSlots.some((s) => parseInt(s.startTime) < 12) && (
-                    <Box mb={1.5}>
-                      <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
-                        🌅 Morning
-                      </Typography>
-                      <Box display="flex" flexWrap="wrap" gap={1}>
-                        {availableSlots
-                          .filter((s) => parseInt(s.startTime) < 12)
-                          .map((slot) => (
-                            <Chip
-                              key={slot.startTime}
-                              label={`${slot.startTime} – ${slot.endTime}`}
-                              clickable
-                              color={selectedSlot?.startTime === slot.startTime ? 'primary' : 'default'}
-                              variant={selectedSlot?.startTime === slot.startTime ? 'filled' : 'outlined'}
-                              onClick={() => {
-                                setSelectedSlot(slot);
-                                setBookDialog((prev) => ({ ...prev, errors: { ...prev.errors, selectedSlot: undefined } }));
-                              }}
-                            />
-                          ))}
-                      </Box>
-                    </Box>
-                  )}
-
-                  {/* Afternoon slots */}
-                  {availableSlots.some((s) => parseInt(s.startTime) >= 12) && (
-                    <Box mb={1}>
-                      <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
-                        🌇 Afternoon
-                      </Typography>
-                      <Box display="flex" flexWrap="wrap" gap={1}>
-                        {availableSlots
-                          .filter((s) => parseInt(s.startTime) >= 12)
-                          .map((slot) => (
-                            <Chip
-                              key={slot.startTime}
-                              label={`${slot.startTime} – ${slot.endTime}`}
-                              clickable
-                              color={selectedSlot?.startTime === slot.startTime ? 'primary' : 'default'}
-                              variant={selectedSlot?.startTime === slot.startTime ? 'filled' : 'outlined'}
-                              onClick={() => {
-                                setSelectedSlot(slot);
-                                setBookDialog((prev) => ({ ...prev, errors: { ...prev.errors, selectedSlot: undefined } }));
-                              }}
-                            />
-                          ))}
-                      </Box>
-                    </Box>
-                  )}
-
-                  {bookDialog.errors.selectedSlot && (
-                    <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>
-                      {bookDialog.errors.selectedSlot}
-                    </Typography>
-                  )}
-                </Box>
-              )}
+            {/* Start Time / End Time */}
+            <Grid item xs={6}>
+              <TextField
+                fullWidth
+                type="time"
+                label="Start Time *"
+                InputLabelProps={{ shrink: true }}
+                value={bookDialog.startTime}
+                onChange={(e) =>
+                  setBookDialog((prev) => ({ ...prev, startTime: e.target.value, errors: { ...prev.errors, startTime: undefined } }))
+                }
+                error={Boolean(bookDialog.errors.startTime)}
+                helperText={bookDialog.errors.startTime}
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth
+                type="time"
+                label="End Time *"
+                InputLabelProps={{ shrink: true }}
+                value={bookDialog.endTime}
+                onChange={(e) =>
+                  setBookDialog((prev) => ({ ...prev, endTime: e.target.value, errors: { ...prev.errors, endTime: undefined } }))
+                }
+                error={Boolean(bookDialog.errors.endTime)}
+                helperText={bookDialog.errors.endTime}
+              />
             </Grid>
 
+            {/* Purpose */}
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                label="Purpose / Reason for Visit"
+                label="Purpose *"
                 value={bookDialog.purpose}
                 onChange={(e) =>
                   setBookDialog((prev) => ({ ...prev, purpose: e.target.value, errors: { ...prev.errors, purpose: undefined } }))
@@ -484,10 +411,12 @@ export default function PatientPortal() {
                 helperText={bookDialog.errors.purpose}
               />
             </Grid>
+
+            {/* Notes */}
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                label="Additional Notes (optional)"
+                label="Notes"
                 multiline
                 rows={3}
                 value={bookDialog.notes}
@@ -496,14 +425,14 @@ export default function PatientPortal() {
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={closeBookDialog} disabled={bookDialog.submitting}>Cancel</Button>
           <Button
             variant="contained"
             onClick={handleBookSubmit}
             disabled={bookDialog.submitting}
           >
-            {bookDialog.submitting ? 'Booking…' : 'Confirm Booking'}
+            {bookDialog.submitting ? 'Scheduling…' : 'Schedule'}
           </Button>
         </DialogActions>
       </Dialog>

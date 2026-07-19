@@ -1,6 +1,7 @@
 using DoctorAppointmentSystem.API.Authorization;
 using DoctorAppointmentSystem.API.DTOs;
 using DoctorAppointmentSystem.API.Services;
+using DoctorAppointmentSystem.Domain;
 using DoctorAppointmentSystem.Domain.Entities;
 using DoctorAppointmentSystem.Domain.Enums;
 using DoctorAppointmentSystem.Repositories.Extensions;
@@ -18,11 +19,13 @@ public class UsersController : BaseController
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IAuthService _authService;
+    private readonly TenantContext _tenantContext;
 
-    public UsersController(IUnitOfWork unitOfWork, IAuthService authService)
+    public UsersController(IUnitOfWork unitOfWork, IAuthService authService, TenantContext tenantContext)
     {
         _unitOfWork = unitOfWork;
         _authService = authService;
+        _tenantContext = tenantContext;
     }
 
     [HttpGet]
@@ -33,6 +36,18 @@ public class UsersController : BaseController
         [FromQuery] bool? isActive = null)
     {
         var query = _unitOfWork.Users.GetAll();
+
+        // Scope to the current tenant (SuperAdmin sees all when no tenant is selected)
+        if (_tenantContext.TenantId.HasValue)
+            query = query.Where(u => u.TenantId == _tenantContext.TenantId.Value);
+
+        // Non-SuperAdmins must never see SuperAdmin accounts
+        var isSuperAdmin = User.IsInRole("SuperAdmin");
+        if (!isSuperAdmin)
+            query = query.Where(u => u.Role != UserRole.SuperAdmin);
+
+        // Staff Management never shows Patient accounts — they are managed in the Patients page
+        query = query.Where(u => u.Role != UserRole.Patient);
 
         if (role.HasValue)
         {
@@ -161,7 +176,8 @@ public class UsersController : BaseController
     {
         // ClinicalStaff includes doctors and clinical staff
         var clinicalStaff = await _unitOfWork.Users
-            .Find(u => u.Role == UserRole.ClinicalStaff && u.IsActive)
+            .Find(u => u.Role == UserRole.ClinicalStaff && u.IsActive
+                       && (!_tenantContext.TenantId.HasValue || u.TenantId == _tenantContext.TenantId.Value))
             .OrderBy(u => u.LastName)
             .Select(u => new
             {
@@ -182,7 +198,8 @@ public class UsersController : BaseController
     public async Task<IActionResult> GetStaff()
     {
         var staff = await _unitOfWork.Users
-            .Find(u => u.IsActive)
+            .Find(u => u.IsActive
+                       && (!_tenantContext.TenantId.HasValue || u.TenantId == _tenantContext.TenantId.Value))
             .OrderBy(u => u.Role)
             .ThenBy(u => u.LastName)
             .Select(u => new
@@ -202,7 +219,8 @@ public class UsersController : BaseController
     public async Task<IActionResult> GetByRole(UserRole role)
     {
         var users = await _unitOfWork.Users
-            .Find(u => u.Role == role && u.IsActive)
+            .Find(u => u.Role == role && u.IsActive
+                       && (!_tenantContext.TenantId.HasValue || u.TenantId == _tenantContext.TenantId.Value))
             .OrderBy(u => u.LastName)
             .Select(u => new
             {
@@ -225,9 +243,8 @@ public class UsersController : BaseController
         if (user == null)
             return NotFound(new { message = "User not found" });
 
-        // Soft delete - just deactivate
-        user.IsActive = false;
-        _unitOfWork.Users.Update(user);
+        // Hard delete — deactivate/activate is handled by the toggle-active endpoint
+        _unitOfWork.Users.Remove(user);
         await _unitOfWork.SaveChangesAsync();
 
         return NoContent();

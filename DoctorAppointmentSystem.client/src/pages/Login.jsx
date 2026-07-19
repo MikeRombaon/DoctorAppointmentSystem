@@ -84,7 +84,7 @@ const Login = () => {
       if (code === 'SUBSCRIPTION_EXPIRED') {
         setErrorSeverity('warning');
         setError(data.message);
-      } else if (status === 401 && data?.message?.toLowerCase().includes('deactivated')) {
+      } else if (code === 'CLINIC_DEACTIVATED' || (status === 401 && data?.message?.toLowerCase().includes('deactivated'))) {
         setErrorSeverity('warning');
         setError(data.message);
       } else {
@@ -277,10 +277,10 @@ const Login = () => {
                         state={{ email: formData.email }}
                         style={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}
                       >
-                        Renew now →
+                        Renew now &rarr;
                       </Link>
                     </>
-                  ) : (
+                  ) : error.toLowerCase().includes('deactivated') ? null : (
                     'Please contact your system administrator to resolve this.'
                   )}
                 </Typography>

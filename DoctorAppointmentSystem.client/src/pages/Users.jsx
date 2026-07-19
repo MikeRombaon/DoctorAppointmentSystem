@@ -25,6 +25,7 @@ import * as yup from 'yup';
 import { toast } from 'react-toastify';
 import userService, { UserRoles, RoleDisplayInfo, getRoleDisplayName } from '../services/userService';
 import { useAuth } from '../contexts/AuthContext';
+import { useSuperAdminTenant } from '../contexts/SuperAdminTenantContext';
 
 const validationSchema = yup.object({
   fullName: yup.string().required('Full name is required').max(200),
@@ -37,7 +38,7 @@ const validationSchema = yup.object({
   }),
 });
 
-// New 5-role system with descriptions
+// Staff roles only — Patients are created/managed via the Patients page
 const roles = [
   { 
     value: UserRoles.SuperAdmin, 
@@ -62,12 +63,6 @@ const roles = [
     label: RoleDisplayInfo.SupportStaff.name,
     description: RoleDisplayInfo.SupportStaff.description,
     icon: RoleDisplayInfo.SupportStaff.icon
-  },
-  { 
-    value: UserRoles.Patient, 
-    label: RoleDisplayInfo.Patient.name,
-    description: RoleDisplayInfo.Patient.description,
-    icon: RoleDisplayInfo.Patient.icon
   },
 ];
 
@@ -131,9 +126,11 @@ const Users = () => {
     },
   });
 
+  const { tenantVersion } = useSuperAdminTenant();
+
   useEffect(() => {
     loadUsers();
-  }, [page, pageSize]);
+  }, [page, pageSize, tenantVersion]);
 
   const loadUsers = async () => {
     try {

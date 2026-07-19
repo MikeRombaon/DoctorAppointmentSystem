@@ -4,6 +4,7 @@ using DoctorAppointmentSystem.Domain.Enums;
 using DoctorAppointmentSystem.Repositories.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace DoctorAppointmentSystem.API.Controllers;
@@ -30,10 +31,27 @@ public class PatientPortalController : ControllerBase
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid))
             return null;
-        var patient = (await _uow.Patients.FindAsync(p => p.UserId == uid)).FirstOrDefault();
-        return patient?.Id;
-    }
 
+        // Fast path: already linked
+        var patient = (await _uow.Patients.FindAsync(p => p.UserId == uid)).FirstOrDefault();
+        if (patient != null)
+            return patient.Id;
+
+        // Fallback: match by email and link
+        var email = User.FindFirstValue(ClaimTypes.Email) ?? User.FindFirstValue("email") ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            var byEmail = (await _uow.Patients.FindAsync(p => p.Email == email && p.UserId == null)).FirstOrDefault();
+            if (byEmail != null) { byEmail.UserId = uid; _uow.Patients.Update(byEmail); await _uow.SaveChangesAsync(); return byEmail.Id; }
+        }
+
+        // Last resort: create a stub profile
+        var user = await _uow.Users.Find(u => u.Id == uid).FirstOrDefaultAsync();
+        if (user == null) return null;
+        var stub = new Patient { FirstName = user.FirstName, LastName = user.LastName, Email = user.Email, PhoneNumber = user.PhoneNumber ?? string.Empty, Address = string.Empty, City = string.Empty, PostalCode = string.Empty, IsActive = true, TenantId = _tenantContext.TenantId ?? user.TenantId ?? 0, CreatedDate = DateTime.UtcNow, UserId = uid };
+        await _uow.Patients.AddAsync(stub); await _uow.SaveChangesAsync();
+        return stub.Id;
+    }
     // GET api/portal/summary
     [HttpGet("summary")]
     public async Task<IActionResult> GetSummary()
@@ -260,6 +278,10 @@ public class PatientPortalController : ControllerBase
         if (dto.EndTime <= dto.StartTime)
             return BadRequest(new { message = "End time must be after start time." });
 
+        // Resolve tenant from the doctor (the appointment belongs to the clinic/tenant where the doctor works)
+        var doctor = await _uow.Users.Find(u => u.Id == dto.DoctorId).FirstOrDefaultAsync();
+        var tenantId = doctor?.TenantId ?? _tenantContext.TenantId ?? 0;
+
         // Guard 1: check working-hours window (use default 09:00-17:00 if no schedule configured)
         var schedule = (await _uow.DentistSchedules.FindAsync(
                 s => s.DentistId == dto.DoctorId && s.DayOfWeek == dto.AppointmentDate.DayOfWeek && s.IsAvailable))
@@ -309,7 +331,7 @@ public class PatientPortalController : ControllerBase
             EndTime         = dto.EndTime,
             Purpose         = dto.Purpose,
             Notes           = dto.Notes,
-            TenantId        = _tenantContext.TenantId ?? 0,
+            TenantId        = tenantId,
             Status          = AppointmentStatus.Scheduled,
             CreatedDate     = DateTime.UtcNow,
         };

@@ -1,6 +1,7 @@
 using DoctorAppointmentSystem.API.DTOs;
 using DoctorAppointmentSystem.API.Services;
 using DoctorAppointmentSystem.Data;
+using DoctorAppointmentSystem.Domain;
 using DoctorAppointmentSystem.Domain.Entities;
 using DoctorAppointmentSystem.Domain.Enums;
 using DoctorAppointmentSystem.Repositories.Interfaces;
@@ -18,17 +19,20 @@ public class AuthController : BaseController
     private readonly IAuthService _authService;
     private readonly IConfiguration _configuration;
     private readonly ApplicationDbContext _db;
+    private readonly TenantContext _tenantContext;
 
     public AuthController(
         IUnitOfWork unitOfWork,
         IAuthService authService,
         IConfiguration configuration,
-        ApplicationDbContext db)
+        ApplicationDbContext db,
+        TenantContext tenantContext)
     {
         _unitOfWork = unitOfWork;
         _authService = authService;
         _configuration = configuration;
         _db = db;
+        _tenantContext = tenantContext;
     }
 
     [HttpPost("login")]
@@ -61,7 +65,7 @@ public class AuthController : BaseController
                 .FirstOrDefaultAsync();
 
             if (tenant != null && !tenant.IsActive)
-                return Unauthorized(new { message = $"Your clinic account has been deactivated. Please contact support." });
+                return Unauthorized(new { message = "Your clinic account has been deactivated. Please contact your system administrator or support to reactivate it.", code = "CLINIC_DEACTIVATED" });
 
             if (tenant?.SubscriptionExpiresAt != null && tenant.SubscriptionExpiresAt < DateTime.UtcNow)
                 return StatusCode(403, new
@@ -127,6 +131,27 @@ public class AuthController : BaseController
 
         await _unitOfWork.Users.AddAsync(user);
         await _unitOfWork.SaveChangesAsync();
+
+        // Auto-create a linked Patient profile for Patient-role accounts
+        if (userRole == UserRole.Patient)
+        {
+            var patient = new Patient
+            {
+                FirstName   = user.FirstName,
+                LastName    = user.LastName,
+                Email       = user.Email,
+                PhoneNumber = user.PhoneNumber ?? string.Empty,
+                Address     = string.Empty,
+                City        = string.Empty,
+                PostalCode  = string.Empty,
+                IsActive    = true,
+                TenantId    = _tenantContext.TenantId ?? 0,
+                CreatedDate = DateTime.UtcNow,
+                UserId      = user.Id,
+            };
+            await _unitOfWork.Patients.AddAsync(patient);
+            await _unitOfWork.SaveChangesAsync();
+        }
 
         return Ok(new { message = "User registered successfully", userId = user.Id });
     }

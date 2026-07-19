@@ -28,6 +28,8 @@ import {
   Cancel as InactiveIcon,
   PersonAdd as NewIcon,
   Close as CloseIcon,
+  Block as BlockIcon,
+  CheckCircleOutline as ActivateIcon,
 } from '@mui/icons-material';
 import { DataGrid } from '@mui/x-data-grid';
 import { toast } from 'react-toastify';
@@ -159,6 +161,19 @@ const Patients = () => {
     formik.resetForm();
   };
 
+  const handleToggleActive = async (patient) => {
+    const action = patient.isActive ? 'deactivate' : 'activate';
+    if (window.confirm(`${patient.isActive ? 'Deactivate' : 'Activate'} ${patient.fullName}?`)) {
+      try {
+        const result = await patientService.toggleActive(patient.id);
+        toast.success(result.message || `Patient ${action}d`);
+        loadPatients();
+      } catch {
+        toast.error(`Error trying to ${action} patient`);
+      }
+    }
+  };
+
   const handleDelete = async (id) => {
     if (window.confirm('Delete this patient? This action cannot be undone.')) {
       try {
@@ -259,7 +274,7 @@ const Patients = () => {
     {
       field: 'actions',
       headerName: '',
-      width: 90,
+      width: 120,
       sortable: false,
       renderCell: (params) => (
         <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -276,6 +291,23 @@ const Patients = () => {
               }}
             >
               <EditIcon sx={{ fontSize: '0.95rem' }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={params.row.isActive ? 'Deactivate' : 'Activate'}>
+            <IconButton
+              size="small"
+              onClick={() => handleToggleActive(params.row)}
+              sx={{
+                color: params.row.isActive ? '#f59e0b' : '#10b981',
+                width: 30,
+                height: 30,
+                borderRadius: '7px',
+                '&:hover': { background: params.row.isActive ? '#fffbeb' : '#ecfdf5' },
+              }}
+            >
+              {params.row.isActive
+                ? <BlockIcon sx={{ fontSize: '0.95rem' }} />
+                : <ActivateIcon sx={{ fontSize: '0.95rem' }} />}
             </IconButton>
           </Tooltip>
           <Tooltip title="Delete">
