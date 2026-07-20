@@ -22,7 +22,10 @@ import {
   Refresh as RefreshIcon,
   DirectionsWalk as WalkInIcon,
   WarningAmber as EmergencyIcon,
+  ArrowDropDown as ArrowDropDownIcon,
 } from '@mui/icons-material';
+import Menu from '@mui/material/Menu';
+import ListItemText from '@mui/material/ListItemText';
 import { toast } from 'react-toastify';
 import appointmentService from '../services/appointmentService';
 import patientService from '../services/patientService';
@@ -120,7 +123,7 @@ const Appointments = () => {
   const loadAppointments = async () => {
     try {
       setLoading(true);
-      const data = await appointmentService.getAll(page + 1, pageSize);
+      const data = await appointmentService.getAll(page + 1, pageSize, null, null, null, true);
       setAppointments(data.items || []);
       setTotalCount(data.totalCount || 0);
     } catch (error) {
@@ -168,12 +171,16 @@ const Appointments = () => {
     setEmergencyLoading(true);
     try {
       const result = await appointmentService.bulkCancel(emergencyDoctorId, emergencyDate, emergencyReason.trim());
-      toast.success(`🚨 ${result.message}`);
-      setOpenEmergencyDialog(false);
-      setEmergencyDoctorId('');
-      setEmergencyReason('');
-      setEmergencyDate(new Date().toISOString().split('T')[0]);
-      loadAppointments();
+      if (result.cancelledCount > 0) {
+        toast.success(`🚨 ${result.message}`);
+        setOpenEmergencyDialog(false);
+        setEmergencyDoctorId('');
+        setEmergencyReason('');
+        setEmergencyDate(new Date().toISOString().split('T')[0]);
+        loadAppointments();
+      } else {
+        toast.warning(`⚠️ ${result.message}`);
+      }
     } catch (error) {
       console.error('Error cancelling appointments:', error);
       toast.error('Failed to cancel appointments. Please try again.');
@@ -192,34 +199,51 @@ const Appointments = () => {
     walkInFormik.resetForm();
   };
 
-  const getStatusColor = (status) => {
-    const colors = {
-      0: 'default', // Scheduled
-      1: 'info',    // Confirmed
-      2: 'warning', // CheckedIn
-      3: 'success', // InProgress
-      4: 'success', // Completed
-      5: 'error',   // Cancelled
-      6: 'error',   // NoShow
-      7: 'info',    // Rescheduled
-      8: 'warning', // WalkIn
-    };
-    return colors[status] || 'default';
+  const STATUS_OPTIONS = [
+    { value: 'Scheduled',   label: 'Scheduled',   color: 'default' },
+    { value: 'Confirmed',   label: 'Confirmed',   color: 'info'    },
+    { value: 'CheckedIn',   label: 'Checked In',  color: 'warning' },
+    { value: 'InProgress',  label: 'In Progress', color: 'primary' },
+    { value: 'Completed',   label: 'Completed',   color: 'success' },
+    { value: 'Cancelled',   label: 'Cancelled',   color: 'error'   },
+    { value: 'NoShow',      label: 'No Show',     color: 'error'   },
+    { value: 'Rescheduled', label: 'Rescheduled', color: 'info'    },
+    { value: 'WalkIn',      label: 'Walk-In',     color: 'warning' },
+  ];
+
+  const getStatusColor = (status) =>
+    STATUS_OPTIONS.find((s) => s.value === status)?.color || 'default';
+
+  const getStatusLabel = (status) =>
+    STATUS_OPTIONS.find((s) => s.value === status)?.label || status || 'Unknown';
+
+  const [statusMenuAnchor, setStatusMenuAnchor] = useState(null);
+  const [statusMenuAppointment, setStatusMenuAppointment] = useState(null);
+
+  const handleStatusChipClick = (event, appointment) => {
+    event.stopPropagation();
+    setStatusMenuAnchor(event.currentTarget);
+    setStatusMenuAppointment(appointment);
   };
 
-  const getStatusLabel = (status) => {
-    const labels = {
-      0: 'Scheduled',
-      1: 'Confirmed',
-      2: 'Checked In',
-      3: 'In Progress',
-      4: 'Completed',
-      5: 'Cancelled',
-      6: 'No Show',
-      7: 'Rescheduled',
-      8: 'Walk-In',
-    };
-    return labels[status] || 'Unknown';
+  const handleStatusMenuClose = () => {
+    setStatusMenuAnchor(null);
+    setStatusMenuAppointment(null);
+  };
+
+  const handleStatusChange = async (newStatus) => {
+    if (!statusMenuAppointment) return;
+    try {
+      await appointmentService.updateStatus(statusMenuAppointment.id, newStatus);
+      toast.success('Status updated successfully');
+      loadAppointments();
+      loadWalkIns();
+    } catch (error) {
+      console.error('Error updating status:', error);
+      toast.error('Failed to update status');
+    } finally {
+      handleStatusMenuClose();
+    }
   };
 
   const columns = [
@@ -248,9 +272,17 @@ const Appointments = () => {
     {
       field: 'status',
       headerName: 'Status',
-      width: 120,
+      width: 140,
       renderCell: (params) => (
-        <Chip label={getStatusLabel(params.value)} color={getStatusColor(params.value)} size="small" />
+        <Chip
+          label={getStatusLabel(params.value)}
+          color={getStatusColor(params.value)}
+          size="small"
+          deleteIcon={<ArrowDropDownIcon />}
+          onDelete={(e) => handleStatusChipClick(e, params.row)}
+          onClick={(e) => handleStatusChipClick(e, params.row)}
+          sx={{ cursor: 'pointer' }}
+        />
       ),
     },
     {
@@ -610,6 +642,29 @@ const Appointments = () => {
               </Button>
             </DialogActions>
           </Dialog>
+
+          {/* Status Change Menu */}
+          <Menu
+            anchorEl={statusMenuAnchor}
+            open={Boolean(statusMenuAnchor)}
+            onClose={handleStatusMenuClose}
+          >
+            {STATUS_OPTIONS.map((option) => (
+              <MenuItem
+                key={option.value}
+                selected={statusMenuAppointment?.status === option.value}
+                onClick={() => handleStatusChange(option.value)}
+              >
+                <Chip
+                  label={option.label}
+                  color={option.color}
+                  size="small"
+                  sx={{ mr: 1, pointerEvents: 'none' }}
+                />
+                <ListItemText primary={option.label} />
+              </MenuItem>
+            ))}
+          </Menu>
         </Box>
       );
     };

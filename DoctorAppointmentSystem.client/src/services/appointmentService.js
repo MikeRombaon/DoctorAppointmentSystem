@@ -1,11 +1,12 @@
 import apiClient from './api';
 
 export const appointmentService = {
-  getAll: async (page = 1, pageSize = 10, date = null, doctorId = null, status = null) => {
+  getAll: async (page = 1, pageSize = 10, date = null, doctorId = null, status = null, activeOnly = false) => {
     const params = { page, pageSize };
     if (date) params.date = date;
     if (doctorId) params.doctorId = doctorId;
     if (status) params.status = status;
+    if (activeOnly) params.activeOnly = true;
 
     const response = await apiClient.get('/appointments', { params });
     return response.data;

@@ -53,12 +53,30 @@ public class AppointmentsController : BaseController
         [FromQuery] DateTime? date = null,
         [FromQuery] int? doctorId = null,
         [FromQuery] int? patientId = null,
-        [FromQuery] AppointmentStatus? status = null)
+        [FromQuery] AppointmentStatus? status = null,
+        [FromQuery] bool activeOnly = false)
     {
+        // IgnoreQueryFilters so that Patient/Dentist navigations are not blocked by the
+        // Patient.TenantId or User.TenantId global filter when patients are cross-tenant
+        // (e.g. a patient from tenant 3 books with a doctor in tenant 1).
+        // The Appointment tenant scope is re-applied explicitly below.
         IQueryable<Appointment> query = _unitOfWork.Appointments.GetAll()
-            .Where(a => !a.IsWalkIn)   // Scheduled tab never shows walk-ins
+            .IgnoreQueryFilters()
+            .Where(a => !a.IsWalkIn)
+            .Where(a => !_tenantContext.TenantId.HasValue || a.TenantId == _tenantContext.TenantId.Value)
             .Include(a => a.Patient)
             .Include(a => a.Dentist);
+
+        if (activeOnly)
+        {
+            var terminalStatuses = new[]
+            {
+                AppointmentStatus.Cancelled,
+                AppointmentStatus.Completed,
+                AppointmentStatus.NoShow,
+            };
+            query = query.Where(a => !terminalStatuses.Contains(a.Status));
+        }
 
         if (date.HasValue)
         {
@@ -98,6 +116,8 @@ public class AppointmentsController : BaseController
     {
         var appointment = await _unitOfWork.Appointments
             .Find(a => a.Id == id)
+            .IgnoreQueryFilters()
+            .Where(a => !_tenantContext.TenantId.HasValue || a.TenantId == _tenantContext.TenantId.Value)
             .Include(a => a.Patient)
             .Include(a => a.Dentist)
             .Include(a => a.Treatments)
@@ -117,6 +137,19 @@ public class AppointmentsController : BaseController
 
         if (!await _unitOfWork.Users.AnyAsync(u => u.Id == dto.DoctorId))
             return BadRequest(new { message = "Invalid doctor ID" });
+
+        // Reject booking on days where the doctor has an all-day emergency block.
+        var allDayBlock = await _unitOfWork.ScheduleBlocks
+            .Find(b => b.DentistId == dto.DoctorId
+                    && b.BlockDate.Date == dto.AppointmentDate.Date
+                    && b.IsAllDay)
+            .FirstOrDefaultAsync();
+
+        if (allDayBlock != null)
+            return BadRequest(new
+            {
+                message = $"Doctor is not available due to {allDayBlock.Reason}"
+            });
 
         var appointment = new Appointment
         {
@@ -226,6 +259,8 @@ public class AppointmentsController : BaseController
         var targetDate = date?.Date ?? DateTime.UtcNow.Date;
 
         var query = _unitOfWork.Appointments.GetAll()
+            .IgnoreQueryFilters()
+            .Where(a => !_tenantContext.TenantId.HasValue || a.TenantId == _tenantContext.TenantId.Value)
             .Where(a => a.IsWalkIn && a.AppointmentDate.Date == targetDate.Date)
             .Include(a => a.Patient)
             .Include(a => a.Dentist)
@@ -247,6 +282,8 @@ public class AppointmentsController : BaseController
     public async Task<IActionResult> GetUpcoming([FromQuery] int? patientId = null, [FromQuery] int? doctorId = null)
     {
         IQueryable<Appointment> query = _unitOfWork.Appointments.GetAll()
+            .IgnoreQueryFilters()
+            .Where(a => !_tenantContext.TenantId.HasValue || a.TenantId == _tenantContext.TenantId.Value)
             .Where(a => a.AppointmentDate >= DateTime.Today && a.Status == AppointmentStatus.Scheduled)
             .Include(a => a.Patient)
             .Include(a => a.Dentist);
@@ -300,6 +337,27 @@ public class AppointmentsController : BaseController
         }
 
         await _unitOfWork.SaveChangesAsync();
+
+        // Block the day so no new appointments can be booked for this doctor.
+        var existingBlock = await _unitOfWork.ScheduleBlocks
+            .Find(b => b.DentistId == dto.DoctorId
+                    && b.BlockDate.Date == dto.Date.Date
+                    && b.IsAllDay)
+            .FirstOrDefaultAsync();
+
+        if (existingBlock == null)
+        {
+            await _unitOfWork.ScheduleBlocks.AddAsync(new ScheduleBlock
+            {
+                DentistId   = dto.DoctorId,
+                BlockDate   = dto.Date.Date,
+                IsAllDay    = true,
+                Reason      = $"Emergency cancellation: {dto.Reason}",
+                TenantId    = _tenantContext.TenantId ?? 0,
+                CreatedDate = DateTime.UtcNow,
+            });
+            await _unitOfWork.SaveChangesAsync();
+        }
 
         return Ok(new { cancelledCount = appointments.Count, message = $"{appointments.Count} appointment(s) cancelled successfully." });
     }
