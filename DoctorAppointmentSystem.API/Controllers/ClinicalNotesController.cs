@@ -80,6 +80,7 @@ public class ClinicalNotesController : BaseController
             CreatedDate = DateTime.UtcNow,
             TenantId = _tenantContext.TenantId ?? 0
         };
+        await _unitOfWork.ClinicalNotes.AddAsync(note);
         await _unitOfWork.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetById), new { id = note.Id }, new { note.Id });

@@ -1,147 +1,155 @@
 import { UserRoles } from '../services/userService';
 
+// Role shorthand arrays (mirrors MainLayout.jsx NAV_GROUPS)
+const ALL_STAFF   = [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff];
+const ADMIN_UP    = [UserRoles.SuperAdmin, UserRoles.Admin];
+const CLINICAL_UP = [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff];
+const OPS_UP      = [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.SupportStaff];
+
 /**
- * Route permission definitions
- * Maps routes to their required roles
- * Empty array = all authenticated users
+ * Route permission definitions.
+ * SuperAdmin is explicitly included in every staff/admin route.
+ * Patient-exclusive routes list ONLY UserRoles.Patient.
+ * Empty array = all authenticated users.
  */
 export const ROUTE_PERMISSIONS = {
-  // Staff routes (Admin, Clinical, Support)
-  DASHBOARD: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff],
-  PATIENTS: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff],
-  APPOINTMENTS: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff],
-  INVENTORY: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff],
 
-  // Clinical routes (Admin, Clinical)
-  TREATMENTS: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff],
+  // Overview
+  DASHBOARD:       ALL_STAFF,
+  ADMIN_DASHBOARD: ADMIN_UP,
 
-  // Phase 1 - Clinical Core (Admin + Clinical)
-  ODONTOGRAM: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff],
-  PERIO_CHART: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff],
-  MEDICAL_HISTORY: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff],
-  CLINICAL_NOTES: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff],
-  CONSENT_FORMS: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff],
-  PRESCRIPTIONS: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff],
+  // Patients & Appointments
+  PATIENTS:     ALL_STAFF,
+  APPOINTMENTS: ALL_STAFF,
+  CALENDAR:     ALL_STAFF,
+  WAITLIST:     ALL_STAFF,
+  RECALL:       ALL_STAFF,
 
-  // Admin Dashboard (Admin + SuperAdmin only)
-  ADMIN_DASHBOARD: [UserRoles.SuperAdmin, UserRoles.Admin],
+  // Clinical
+  TREATMENTS:          CLINICAL_UP,
+  DIAGNOSIS:           CLINICAL_UP,
+  VITALS:              CLINICAL_UP,
+  MEDICAL_HISTORY:     ALL_STAFF,
+  CLINICAL_NOTES:      CLINICAL_UP,
+  CONSENT_FORMS:       ALL_STAFF,
+  PRESCRIPTIONS:       CLINICAL_UP,
+  PROCEDURES:          CLINICAL_UP,
+  DIAGNOSTIC_REQUESTS: CLINICAL_UP,
+  LAB_ORDERS:          CLINICAL_UP,
 
-  // Admin-only routes
-  INVOICES: [UserRoles.SuperAdmin, UserRoles.Admin],
-  SUBSCRIPTION: [UserRoles.SuperAdmin, UserRoles.Admin],
-  USERS: [UserRoles.SuperAdmin, UserRoles.Admin],
+  // Billing
+  INVOICES:     ADMIN_UP,
+  ESTIMATES:    ALL_STAFF,
+  INSURANCE:    OPS_UP,
+  CLAIMS:       ADMIN_UP,
+  STATEMENTS:   ADMIN_UP,
+  SUBSCRIPTION: ADMIN_UP,
 
-  // Phase 2 - Financial (Admin only)
-  INSURANCE: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.SupportStaff],
-  ESTIMATES: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff],
-  CLAIMS: [UserRoles.SuperAdmin, UserRoles.Admin],
-  STATEMENTS: [UserRoles.SuperAdmin, UserRoles.Admin],
+  // Operations
+  INVENTORY:        ALL_STAFF,
+  PURCHASE_ORDERS:  OPS_UP,
+  DENTIST_SCHEDULE: CLINICAL_UP,
 
-  // Phase 3 - Portal, Documents & Audit
-  DOCUMENTS: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff],
+  // Clinic Management
+  BRANCHES: ADMIN_UP,
+  USERS:    ADMIN_UP,
+
+  // Communication — Notifications accessible to all roles including Patient
+  NOTIFICATION_CENTER: [...ALL_STAFF, UserRoles.Patient],
+  COMMUNICATION_LOG:   ALL_STAFF,
+  REMINDERS:           OPS_UP,
+
+  // Reports & Analytics
+  REPORTS:   ALL_STAFF,
+  DOCUMENTS: ALL_STAFF,
+  AUDIT_LOG: ADMIN_UP,
+  SETTINGS:  ADMIN_UP,
+
+  // Patient Portal (Patient role ONLY)
   PATIENT_PORTAL: [UserRoles.Patient],
-  AUDIT_LOG: [UserRoles.SuperAdmin, UserRoles.Admin],
-
-  // Phase 4 - Reporting, Calendar, Recall, Procedures, Settings
-  REPORTS: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff],
-  CALENDAR: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff],
-  RECALL: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff],
-  PROCEDURES: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff],
-  SETTINGS: [UserRoles.SuperAdmin, UserRoles.Admin],
-
-  // Phase 5 - Multi-Branch, Scheduling, Procurement, Lab, Waitlist
-  BRANCHES: [UserRoles.SuperAdmin, UserRoles.Admin],
-  DENTIST_SCHEDULE: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff],
-  PURCHASE_ORDERS: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.SupportStaff],
-  LAB_ORDERS: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff],
-  DIAGNOSTIC_REQUESTS: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff],
-  WAITLIST: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff],
-
-  // Phase 6 - Notifications, Communication, Reminders
-  NOTIFICATION_CENTER: [], // all authenticated users
-  COMMUNICATION_LOG: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff],
-  REMINDERS: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.SupportStaff],
-
-  // All authenticated users
-  PROFILE: [], // Empty = everyone
 
   // SuperAdmin only
   TENANTS: [UserRoles.SuperAdmin],
+
+  // All authenticated users
+  PROFILE: [],
 };
 
 /**
  * Route paths
  */
 export const ROUTES = {
-  LOGIN: '/login',
-  DASHBOARD: '/dashboard',
-  PATIENTS: '/patients',
-  APPOINTMENTS: '/appointments',
-  TREATMENTS: '/treatments',
-  INVENTORY: '/inventory',
-  INVOICES: '/invoices',
-  SUBSCRIPTION: '/subscription',
-  USERS: '/users',
-  PROFILE: '/profile',
+  LOGIN:        '/login',
+  DASHBOARD:    '/dashboard',
   UNAUTHORIZED: '/unauthorized',
-  NOT_FOUND: '*',
+  NOT_FOUND:    '*',
+  PROFILE:      '/profile',
 
-  // Phase 1 - Clinical Core
-  ODONTOGRAM: '/odontogram',
-  PERIO_CHART: '/perio-chart',
-  MEDICAL_HISTORY: '/medical-history',
-  CLINICAL_NOTES: '/clinical-notes',
-  CONSENT_FORMS: '/consent-forms',
-  PRESCRIPTIONS: '/prescriptions',
-
-  // Phase 2 - Financial
-  INSURANCE: '/insurance',
-  ESTIMATES: '/estimates',
-  CLAIMS: '/claims',
-  STATEMENTS: '/statements',
-
-  // Phase 3 - Portal, Documents & Audit
-  DOCUMENTS: '/documents',
-  PATIENT_PORTAL: '/portal',
-  AUDIT_LOG: '/audit-log',
-
-  // Phase 4 - Reporting, Calendar, Recall, Procedures, Settings
-  REPORTS: '/reports',
-  CALENDAR: '/calendar',
-  RECALL: '/recall',
-  PROCEDURES: '/procedures',
-  SETTINGS: '/settings',
-
-  // Phase 5 - Multi-Branch, Scheduling, Procurement, Lab, Waitlist
-  BRANCHES: '/branches',
-  DENTIST_SCHEDULE: '/dentist-schedule',
-  PURCHASE_ORDERS: '/purchase-orders',
-  LAB_ORDERS: '/lab-orders',
-  DIAGNOSTIC_REQUESTS: '/diagnostic-requests',
-  WAITLIST: '/waitlist',
-
-  // Phase 6 - Notifications, Communication, Reminders
-  NOTIFICATION_CENTER: '/notifications',
-  COMMUNICATION_LOG: '/communication-log',
-  REMINDERS: '/reminders',
-
-  // Admin Dashboard
+  // Overview
   ADMIN_DASHBOARD: '/admin-dashboard',
+
+  // Patients & Appointments
+  PATIENTS:     '/patients',
+  APPOINTMENTS: '/appointments',
+  CALENDAR:     '/calendar',
+  WAITLIST:     '/waitlist',
+  RECALL:       '/recall',
+
+  // Clinical
+  TREATMENTS:          '/treatments',
+  DIAGNOSIS:           '/diagnosis',
+  VITALS:              '/vitals',
+  MEDICAL_HISTORY:     '/medical-history',
+  CLINICAL_NOTES:      '/clinical-notes',
+  CONSENT_FORMS:       '/consent-forms',
+  PRESCRIPTIONS:       '/prescriptions',
+  PROCEDURES:          '/procedures',
+  DIAGNOSTIC_REQUESTS: '/diagnostic-requests',
+  LAB_ORDERS:          '/lab-orders',
+
+  // Billing
+  INVOICES:     '/invoices',
+  ESTIMATES:    '/estimates',
+  INSURANCE:    '/insurance',
+  CLAIMS:       '/claims',
+  STATEMENTS:   '/statements',
+  SUBSCRIPTION: '/subscription',
+
+  // Operations
+  INVENTORY:        '/inventory',
+  PURCHASE_ORDERS:  '/purchase-orders',
+  DENTIST_SCHEDULE: '/dentist-schedule',
+
+  // Clinic Management
+  BRANCHES: '/branches',
+  USERS:    '/users',
+
+  // Communication
+  NOTIFICATION_CENTER: '/notifications',
+  COMMUNICATION_LOG:   '/communication-log',
+  REMINDERS:           '/reminders',
+
+  // Reports & Analytics
+  REPORTS:   '/reports',
+  DOCUMENTS: '/documents',
+  AUDIT_LOG: '/audit-log',
+  SETTINGS:  '/settings',
+
+  // Patient Portal
+  PATIENT_PORTAL: '/portal',
 
   // SuperAdmin
   TENANTS: '/tenants',
 };
 
 /**
- * Check if a role has access to a specific route
- * @param {string} role - User role
- * @param {string} routeKey - Route key from ROUTE_PERMISSIONS
- * @returns {boolean} - Whether the role has access
+ * Check if a role has access to a specific route.
+ * @param {string} role     - User role string
+ * @param {string} routeKey - Key from ROUTE_PERMISSIONS
+ * @returns {boolean}
  */
 export const hasRouteAccess = (role, routeKey) => {
   const requiredRoles = ROUTE_PERMISSIONS[routeKey];
-  if (!requiredRoles || requiredRoles.length === 0) {
-    return true; // No restrictions or everyone can access
-  }
+  if (!requiredRoles || requiredRoles.length === 0) return true;
   return requiredRoles.includes(role);
 };

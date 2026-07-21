@@ -1,4 +1,5 @@
 using DoctorAppointmentSystem.API.Services;
+using DoctorAppointmentSystem.Domain;
 using DoctorAppointmentSystem.Domain.Entities;
 using DoctorAppointmentSystem.Repositories.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -17,6 +18,7 @@ public class DocumentsController : ControllerBase
     private readonly IConfiguration _config;
     private readonly IWebHostEnvironment _env;
     private readonly ILogger<DocumentsController> _logger;
+    private readonly TenantContext _tenantContext;
 
     private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -25,13 +27,15 @@ public class DocumentsController : ControllerBase
     };
 
     public DocumentsController(IUnitOfWork uow, IAuditService audit,
-        IConfiguration config, IWebHostEnvironment env, ILogger<DocumentsController> logger)
+        IConfiguration config, IWebHostEnvironment env,
+        ILogger<DocumentsController> logger, TenantContext tenantContext)
     {
         _uow = uow;
         _audit = audit;
         _config = config;
         _env = env;
         _logger = logger;
+        _tenantContext = tenantContext;
     }
 
     private string GetUploadRoot() =>
@@ -112,7 +116,8 @@ public class DocumentsController : ControllerBase
             ContentType = file.ContentType,
             FileSizeBytes = file.Length,
             Category = category,
-            Description = description
+            Description = description,
+            TenantId = _tenantContext.TenantId ?? 0
         };
 
         await _uow.PatientDocuments.AddAsync(doc);

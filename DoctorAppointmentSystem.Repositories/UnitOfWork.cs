@@ -70,6 +70,10 @@ public class UnitOfWork : IUnitOfWork
         Notifications = new Repository<Notification>(_context);
         CommunicationLogs = new Repository<CommunicationLog>(_context);
         ReminderLogs = new Repository<ReminderLog>(_context);
+
+        // General Medicine - Diagnosis & Vitals
+        PatientDiagnoses = new Repository<PatientDiagnosis>(_context);
+        PatientVitals = new Repository<PatientVitals>(_context);
     }
 
     // Patient Management
@@ -138,6 +142,10 @@ public class UnitOfWork : IUnitOfWork
     public IRepository<Notification> Notifications { get; private set; }
     public IRepository<CommunicationLog> CommunicationLogs { get; private set; }
     public IRepository<ReminderLog> ReminderLogs { get; private set; }
+
+    // General Medicine - Diagnosis & Vitals
+    public IRepository<PatientDiagnosis> PatientDiagnoses { get; private set; }
+    public IRepository<PatientVitals> PatientVitals { get; private set; }
 
     public async Task<int> SaveChangesAsync()
     {

@@ -87,6 +87,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<CommunicationLog> CommunicationLogs { get; set; }
     public DbSet<ReminderLog> ReminderLogs { get; set; }
 
+    // General Medicine - Diagnosis & Vitals
+    public DbSet<PatientDiagnosis> PatientDiagnoses { get; set; }
+    public DbSet<PatientVitals> PatientVitals { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -278,6 +282,14 @@ public class ApplicationDbContext : DbContext
             _tenantContext == null || !_tenantContext.TenantId.HasValue ||
             e.TenantId == _tenantContext.TenantId.GetValueOrDefault());
 
+        modelBuilder.Entity<PatientDiagnosis>().HasQueryFilter(e =>
+            _tenantContext == null || !_tenantContext.TenantId.HasValue ||
+            e.TenantId == _tenantContext.TenantId.GetValueOrDefault());
+
+        modelBuilder.Entity<PatientVitals>().HasQueryFilter(e =>
+            _tenantContext == null || !_tenantContext.TenantId.HasValue ||
+            e.TenantId == _tenantContext.TenantId.GetValueOrDefault());
+
         // ── Tenant FK Configurations ──
         // Entities with Tenant navigation property — use nav lambda so EF merges correctly
         modelBuilder.Entity<User>().HasOne(e => e.Tenant).WithMany().HasForeignKey(e => e.TenantId).OnDelete(DeleteBehavior.SetNull);
@@ -294,6 +306,8 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<LabOrder>().HasOne<Tenant>().WithMany().HasForeignKey(e => e.TenantId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<DiagnosticRequest>().HasOne<Tenant>().WithMany().HasForeignKey(e => e.TenantId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<ClinicalNote>().HasOne<Tenant>().WithMany().HasForeignKey(e => e.TenantId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PatientDiagnosis>().HasOne<Tenant>().WithMany().HasForeignKey(e => e.TenantId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PatientVitals>().HasOne<Tenant>().WithMany().HasForeignKey(e => e.TenantId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<MedicalHistory>().HasOne<Tenant>().WithMany().HasForeignKey(e => e.TenantId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<TreatmentPlan>().HasOne<Tenant>().WithMany().HasForeignKey(e => e.TenantId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Treatment>().HasOne<Tenant>().WithMany().HasForeignKey(e => e.TenantId).OnDelete(DeleteBehavior.Restrict);
@@ -1238,6 +1252,63 @@ public class ApplicationDbContext : DbContext
                 .HasForeignKey(e => e.TriggeredByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(e => e.ReminderDate);
+        });
+
+        // General Medicine - PatientDiagnosis
+        modelBuilder.Entity<PatientDiagnosis>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Description).IsRequired().HasMaxLength(500);
+            entity.Property(e => e.IcdCode).HasMaxLength(20);
+            entity.Property(e => e.Status).HasMaxLength(50).HasDefaultValue("Active");
+            entity.Property(e => e.Severity).HasMaxLength(50);
+            entity.Property(e => e.Notes).HasMaxLength(2000);
+            entity.HasOne(e => e.Patient)
+                .WithMany()
+                .HasForeignKey(e => e.PatientId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Appointment)
+                .WithMany()
+                .HasForeignKey(e => e.AppointmentId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(e => e.RecordedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.RecordedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => e.PatientId);
+            entity.HasIndex(e => e.TenantId);
+            entity.HasIndex(e => e.Status);
+        });
+
+        // General Medicine - PatientVitals
+        modelBuilder.Entity<PatientVitals>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.SystolicBP).HasPrecision(6, 2);
+            entity.Property(e => e.DiastolicBP).HasPrecision(6, 2);
+            entity.Property(e => e.HeartRate).HasPrecision(6, 2);
+            entity.Property(e => e.Temperature).HasPrecision(5, 2);
+            entity.Property(e => e.Spo2).HasPrecision(5, 2);
+            entity.Property(e => e.RespiratoryRate).HasPrecision(5, 2);
+            entity.Property(e => e.Weight).HasPrecision(6, 2);
+            entity.Property(e => e.Height).HasPrecision(6, 2);
+            entity.Property(e => e.Bmi).HasPrecision(5, 2);
+            entity.Property(e => e.Notes).HasMaxLength(1000);
+            entity.HasOne(e => e.Patient)
+                .WithMany()
+                .HasForeignKey(e => e.PatientId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Appointment)
+                .WithMany()
+                .HasForeignKey(e => e.AppointmentId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(e => e.RecordedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.RecordedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => e.PatientId);
+            entity.HasIndex(e => e.TenantId);
+            entity.HasIndex(e => e.RecordedAt);
         });
     }
 }

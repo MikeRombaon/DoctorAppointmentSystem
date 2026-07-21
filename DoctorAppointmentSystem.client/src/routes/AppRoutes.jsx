@@ -19,8 +19,8 @@ import Profile from '../pages/Profile';
 import Unauthorized from '../pages/Unauthorized';
 import NotFound from '../pages/NotFound';
 // Phase 1 - Clinical Core
-import Odontogram from '../pages/Odontogram';
-import PerioChart from '../pages/PerioChart';
+import Diagnosis from '../pages/Diagnosis';
+import Vitals from '../pages/Vitals';
 import MedicalHistory from '../pages/MedicalHistory';
 import ClinicalNotes from '../pages/ClinicalNotes';
 import ConsentForms from '../pages/ConsentForms';
@@ -69,7 +69,7 @@ const AppRoutes = () => {
       <Route path="/register-tenant" element={<RegisterTenant />} />
       <Route path="/renew-subscription" element={<RenewSubscription />} />
 
-      {/* Staff-accessible routes (Admin, Clinical, Support) */}
+      {/* ── Overview ─────────────────────────────────────────────────── */}
       <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.DASHBOARD} />}>
         <Route path={ROUTES.DASHBOARD} element={<Dashboard />} />
       </Route>
@@ -78,6 +78,7 @@ const AppRoutes = () => {
         <Route path={ROUTES.ADMIN_DASHBOARD} element={<AdminDashboard />} />
       </Route>
 
+      {/* ── Patients & Appointments ───────────────────────────────────── */}
       <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.PATIENTS} />}>
         <Route path={ROUTES.PATIENTS} element={<Patients />} />
       </Route>
@@ -86,22 +87,18 @@ const AppRoutes = () => {
         <Route path={ROUTES.APPOINTMENTS} element={<Appointments />} />
       </Route>
 
-      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.INVENTORY} />}>
-        <Route path={ROUTES.INVENTORY} element={<Inventory />} />
-      </Route>
-
-      {/* Clinical staff routes (Admin, Clinical) */}
+      {/* ── Clinical ─────────────────────────────────────────────────── */}
       <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.TREATMENTS} />}>
         <Route path={ROUTES.TREATMENTS} element={<Treatments />} />
       </Route>
 
-      {/* Phase 1 - Clinical Core */}
-      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.ODONTOGRAM} />}>
-        <Route path={ROUTES.ODONTOGRAM} element={<Odontogram />} />
+      {/* Clinical Core */}
+      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.DIAGNOSIS} />}>
+        <Route path={ROUTES.DIAGNOSIS} element={<Diagnosis />} />
       </Route>
 
-      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.PERIO_CHART} />}>
-        <Route path={ROUTES.PERIO_CHART} element={<PerioChart />} />
+      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.VITALS} />}>
+        <Route path={ROUTES.VITALS} element={<Vitals />} />
       </Route>
 
       <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.MEDICAL_HISTORY} />}>
@@ -120,7 +117,11 @@ const AppRoutes = () => {
         <Route path={ROUTES.PRESCRIPTIONS} element={<Prescriptions />} />
       </Route>
 
-      {/* Phase 2 - Financial */}
+      {/* ── Billing ───────────────────────────────────────────────────── */}
+      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.INVOICES} />}>
+        <Route path={ROUTES.INVOICES} element={<Invoices />} />
+      </Route>
+
       <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.SUBSCRIPTION} />}>
         <Route path={ROUTES.SUBSCRIPTION} element={<Subscription />} />
       </Route>
@@ -141,36 +142,42 @@ const AppRoutes = () => {
         <Route path={ROUTES.STATEMENTS} element={<Statements />} />
       </Route>
 
-      {/* Admin-only routes */}
-      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.INVOICES} />}>
-        <Route path={ROUTES.INVOICES} element={<Invoices />} />
+      {/* ── Operations ─────────────────────────────────────────────────── */}
+      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.INVENTORY} />}>
+        <Route path={ROUTES.INVENTORY} element={<Inventory />} />
+      </Route>
+
+      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.PURCHASE_ORDERS} />}>
+        <Route path={ROUTES.PURCHASE_ORDERS} element={<PurchaseOrders />} />
+      </Route>
+
+      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.DENTIST_SCHEDULE} />}>
+        <Route path={ROUTES.DENTIST_SCHEDULE} element={<DentistSchedule />} />
+      </Route>
+
+      {/* ── Clinic Management ─────────────────────────────────────────── */}
+      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.BRANCHES} />}>
+        <Route path={ROUTES.BRANCHES} element={<Branches />} />
       </Route>
 
       <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.USERS} />}>
         <Route path={ROUTES.USERS} element={<Users />} />
       </Route>
 
-      {/* All authenticated users (including patients) */}
-      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.PROFILE} />}>
-        <Route path={ROUTES.PROFILE} element={<Profile />} />
+      {/* ── Communication ─────────────────────────────────────────────── */}
+      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.NOTIFICATION_CENTER} />}>
+        <Route path={ROUTES.NOTIFICATION_CENTER} element={<NotificationCenter />} />
       </Route>
 
-      {/* Phase 3 - Patient Portal (Patient role only) */}
-      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.PATIENT_PORTAL} />}>
-        <Route path={ROUTES.PATIENT_PORTAL} element={<PatientPortal />} />
+      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.COMMUNICATION_LOG} />}>
+        <Route path={ROUTES.COMMUNICATION_LOG} element={<CommunicationLog />} />
       </Route>
 
-      {/* Phase 3 - Documents (staff) */}
-      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.DOCUMENTS} />}>
-        <Route path={ROUTES.DOCUMENTS} element={<Documents />} />
+      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.REMINDERS} />}>
+        <Route path={ROUTES.REMINDERS} element={<Reminders />} />
       </Route>
 
-      {/* Phase 3 - Audit Log (admin only) */}
-      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.AUDIT_LOG} />}>
-        <Route path={ROUTES.AUDIT_LOG} element={<AuditLogPage />} />
-      </Route>
-
-      {/* Phase 4 - Reports, Calendar, Recall, Procedures, Settings */}
+      {/* ── Reports & Analytics ───────────────────────────────────────── */}
       <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.REPORTS} />}>
         <Route path={ROUTES.REPORTS} element={<Reports />} />
       </Route>
@@ -187,21 +194,31 @@ const AppRoutes = () => {
         <Route path={ROUTES.PROCEDURES} element={<Procedures />} />
       </Route>
 
+      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.DOCUMENTS} />}>
+        <Route path={ROUTES.DOCUMENTS} element={<Documents />} />
+      </Route>
+
+      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.AUDIT_LOG} />}>
+        <Route path={ROUTES.AUDIT_LOG} element={<AuditLogPage />} />
+      </Route>
+
       <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.SETTINGS} />}>
         <Route path={ROUTES.SETTINGS} element={<SettingsPage />} />
       </Route>
 
-      {/* Phase 5 - Branches, Scheduling, Procurement, Lab, Waitlist */}
-      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.BRANCHES} />}>
-        <Route path={ROUTES.BRANCHES} element={<Branches />} />
+      {/* ── Patient Portal (Patient role ONLY) ─────────────────────────── */}
+      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.PATIENT_PORTAL} />}>
+        <Route path={ROUTES.PATIENT_PORTAL} element={<PatientPortal />} />
       </Route>
 
-      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.DENTIST_SCHEDULE} />}>
-        <Route path={ROUTES.DENTIST_SCHEDULE} element={<DentistSchedule />} />
+      {/* ── SuperAdmin ────────────────────────────────────────────────── */}
+      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.TENANTS} />}>
+        <Route path={ROUTES.TENANTS} element={<TenantManagement />} />
       </Route>
 
-      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.PURCHASE_ORDERS} />}>
-        <Route path={ROUTES.PURCHASE_ORDERS} element={<PurchaseOrders />} />
+      {/* ── Profile & Fallbacks ───────────────────────────────────────── */}
+      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.PROFILE} />}>
+        <Route path={ROUTES.PROFILE} element={<Profile />} />
       </Route>
 
       <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.LAB_ORDERS} />}>
@@ -216,27 +233,7 @@ const AppRoutes = () => {
         <Route path={ROUTES.WAITLIST} element={<Waitlist />} />
       </Route>
 
-      {/* Phase 6 - Notifications, Communication, Reminders */}
-      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.NOTIFICATION_CENTER} />}>
-        <Route path={ROUTES.NOTIFICATION_CENTER} element={<NotificationCenter />} />
-      </Route>
-
-      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.COMMUNICATION_LOG} />}>
-        <Route path={ROUTES.COMMUNICATION_LOG} element={<CommunicationLog />} />
-      </Route>
-
-      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.REMINDERS} />}>
-        <Route path={ROUTES.REMINDERS} element={<Reminders />} />
-      </Route>
-
-      {/* All authenticated users (including patients) */}
       <Route path={ROUTES.UNAUTHORIZED} element={<Unauthorized />} />
-
-      {/* SuperAdmin */}
-      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.TENANTS} />}>
-        <Route path={ROUTES.TENANTS} element={<TenantManagement />} />
-      </Route>
-
       <Route path="/" element={<Navigate to={user?.role === 'Patient' ? ROUTES.PATIENT_PORTAL : ROUTES.DASHBOARD} />} />
       <Route path={ROUTES.NOT_FOUND} element={<NotFound />} />
     </Routes>

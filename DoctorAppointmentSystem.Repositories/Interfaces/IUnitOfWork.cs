@@ -71,6 +71,10 @@ public interface IUnitOfWork : IDisposable
     IRepository<CommunicationLog> CommunicationLogs { get; }
     IRepository<ReminderLog> ReminderLogs { get; }
 
+    // General Medicine - Diagnosis & Vitals
+    IRepository<PatientDiagnosis> PatientDiagnoses { get; }
+    IRepository<PatientVitals> PatientVitals { get; }
+
     Task<int> SaveChangesAsync();
     int SaveChanges();
 }

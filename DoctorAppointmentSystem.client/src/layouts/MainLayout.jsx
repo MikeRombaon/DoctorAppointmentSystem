@@ -73,89 +73,99 @@ import { useAuth } from '../contexts/AuthContext';
 import { UserRoles, getRoleDisplayName } from '../services/userService';
 import TenantSelectorBar from '../components/TenantSelectorBar';
 
-// Nav groups with their items
+// ── Role shorthand arrays (keep DRY; SuperAdmin is always included in staff routes) ──
+const ALL_STAFF   = [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff];
+const ADMIN_UP    = [UserRoles.SuperAdmin, UserRoles.Admin];
+const CLINICAL_UP = [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff];
+const OPS_UP      = [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.SupportStaff];
+
+// Nav groups with their items.
+// SuperAdmin sees all staff groups via the visibleGroups bypass — there is NO
+// separate "SuperAdmin" group (avoids duplicate links). The one SuperAdmin-only
+// item (Tenant Management) lives inside Clinic Management.
 const NAV_GROUPS = [
   {
     label: 'Overview',
     items: [
-      { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', roles: [UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff] },
-      { text: 'Admin Dashboard', icon: <AdminIcon />, path: '/admin-dashboard', roles: [UserRoles.Admin] },
+      { text: 'Dashboard',       icon: <DashboardIcon />, path: '/dashboard',       roles: ALL_STAFF },
+      { text: 'Admin Dashboard', icon: <AdminIcon />,     path: '/admin-dashboard', roles: ADMIN_UP },
     ],
   },
   {
     label: 'Patients & Appointments',
     items: [
-      { text: 'Patients', icon: <PeopleIcon />, path: '/patients', roles: [UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff] },
-      { text: 'Appointments', icon: <CalendarIcon />, path: '/appointments', roles: [UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff] },
-      { text: 'Calendar', icon: <CalViewIcon />, path: '/calendar', roles: [UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff] },
-      { text: 'Waitlist', icon: <WaitlistIcon />, path: '/waitlist', roles: [UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff] },
-      { text: 'Recalls', icon: <RecallIcon />, path: '/recall', roles: [UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff] },
+      { text: 'Patients',     icon: <PeopleIcon />,   path: '/patients',     roles: ALL_STAFF },
+      { text: 'Appointments', icon: <CalendarIcon />, path: '/appointments', roles: ALL_STAFF },
+      { text: 'Calendar',     icon: <CalViewIcon />,  path: '/calendar',     roles: ALL_STAFF },
+      { text: 'Waitlist',     icon: <WaitlistIcon />, path: '/waitlist',     roles: ALL_STAFF },
+      { text: 'Recalls',      icon: <RecallIcon />,   path: '/recall',       roles: ALL_STAFF },
     ],
   },
   {
     label: 'Clinical',
     items: [
-      { text: 'Treatments', icon: <TreatmentIcon />, path: '/treatments', roles: [UserRoles.Admin, UserRoles.ClinicalStaff] },
-      { text: 'Diagnosis', icon: <DiagnosisIcon />, path: '/odontogram', roles: [UserRoles.Admin, UserRoles.ClinicalStaff] },
-      { text: 'Vitals Chart', icon: <VitalsIcon />, path: '/perio-chart', roles: [UserRoles.Admin, UserRoles.ClinicalStaff] },
-      { text: 'Medical History', icon: <MedHistIcon />, path: '/medical-history', roles: [UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff] },
-      { text: 'Clinical Notes', icon: <NoteIcon />, path: '/clinical-notes', roles: [UserRoles.Admin, UserRoles.ClinicalStaff] },
-      { text: 'Consent Forms', icon: <ConsentIcon />, path: '/consent-forms', roles: [UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff] },
-      { text: 'Prescriptions', icon: <RxIcon />, path: '/prescriptions', roles: [UserRoles.Admin, UserRoles.ClinicalStaff] },
-      { text: 'Procedures', icon: <ProceduresIcon />, path: '/procedures', roles: [UserRoles.Admin, UserRoles.ClinicalStaff] },
-      { text: 'Diagnostic Requests', icon: <DiagnosticIcon />, path: '/diagnostic-requests', roles: [UserRoles.Admin, UserRoles.ClinicalStaff] },
+      { text: 'Treatments',          icon: <TreatmentIcon />,  path: '/treatments',          roles: CLINICAL_UP },
+      { text: 'Diagnosis',           icon: <DiagnosisIcon />,  path: '/diagnosis',           roles: CLINICAL_UP },
+      { text: 'Vitals Chart',        icon: <VitalsIcon />,     path: '/vitals',              roles: CLINICAL_UP },
+      { text: 'Medical History',     icon: <MedHistIcon />,    path: '/medical-history',     roles: ALL_STAFF },
+      { text: 'Clinical Notes',      icon: <NoteIcon />,       path: '/clinical-notes',      roles: CLINICAL_UP },
+      { text: 'Consent Forms',       icon: <ConsentIcon />,    path: '/consent-forms',       roles: ALL_STAFF },
+      { text: 'Prescriptions',       icon: <RxIcon />,         path: '/prescriptions',       roles: CLINICAL_UP },
+      { text: 'Procedures',          icon: <ProceduresIcon />, path: '/procedures',          roles: CLINICAL_UP },
+      { text: 'Diagnostic Requests', icon: <DiagnosticIcon />, path: '/diagnostic-requests', roles: CLINICAL_UP },
+      { text: 'Lab Orders',          icon: <LabIcon />,        path: '/lab-orders',          roles: CLINICAL_UP },
     ],
   },
   {
     label: 'Billing',
     items: [
-      { text: 'Invoices', icon: <InvoiceIcon />, path: '/invoices', roles: [UserRoles.Admin] },
-      { text: 'Subscription', icon: <EstimateIcon />, path: '/subscription', roles: [UserRoles.Admin] },
-      { text: 'Insurance', icon: <InsuranceIcon />, path: '/insurance', roles: [UserRoles.Admin, UserRoles.SupportStaff] },
-      { text: 'Estimates', icon: <EstimateIcon />, path: '/estimates', roles: [UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff] },
-      { text: 'Claims', icon: <ClaimIcon />, path: '/claims', roles: [UserRoles.Admin] },
-      { text: 'Statements', icon: <StatementsIcon />, path: '/statements', roles: [UserRoles.Admin] },
+      { text: 'Invoices',     icon: <InvoiceIcon />,    path: '/invoices',     roles: ADMIN_UP },
+      { text: 'Estimates',    icon: <EstimateIcon />,   path: '/estimates',    roles: ALL_STAFF },
+      { text: 'Insurance',    icon: <InsuranceIcon />,  path: '/insurance',    roles: OPS_UP },
+      { text: 'Claims',       icon: <ClaimIcon />,      path: '/claims',       roles: ADMIN_UP },
+      { text: 'Statements',   icon: <StatementsIcon />, path: '/statements',   roles: ADMIN_UP },
+      { text: 'Subscription', icon: <EstimateIcon />,   path: '/subscription', roles: ADMIN_UP },
     ],
   },
   {
     label: 'Operations',
     items: [
-      { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory', roles: [UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff] },
-      { text: 'Purchase Orders', icon: <POIcon />, path: '/purchase-orders', roles: [UserRoles.Admin, UserRoles.SupportStaff] },
-      { text: 'Lab Orders', icon: <LabIcon />, path: '/lab-orders', roles: [UserRoles.Admin, UserRoles.ClinicalStaff] },
-      { text: 'Dr. Schedule', icon: <ScheduleIcon />, path: '/dentist-schedule', roles: [UserRoles.Admin, UserRoles.ClinicalStaff] },
-      { text: 'Branches', icon: <BranchIcon />, path: '/branches', roles: [UserRoles.Admin] },
+      { text: 'Inventory',       icon: <InventoryIcon />, path: '/inventory',        roles: ALL_STAFF },
+      { text: 'Purchase Orders', icon: <POIcon />,        path: '/purchase-orders',  roles: OPS_UP },
+      { text: 'Doctor Schedule', icon: <ScheduleIcon />,  path: '/dentist-schedule', roles: CLINICAL_UP },
+    ],
+  },
+  {
+    label: 'Clinic Management',
+    items: [
+      { text: 'Branches',          icon: <BranchIcon />, path: '/branches', roles: ADMIN_UP },
+      { text: 'Users',             icon: <AdminIcon />,  path: '/users',    roles: ADMIN_UP },
+      // SuperAdmin-only item — isPatientExclusive guard won't fire; isSuperAdmin bypass shows it
+      { text: 'Tenant Management', icon: <DomainIcon />, path: '/tenants',  roles: [UserRoles.SuperAdmin] },
     ],
   },
   {
     label: 'Communication',
     items: [
-      { text: 'Notifications', icon: <NotificationsIcon />, path: '/notifications', roles: [UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff, UserRoles.Patient] },
-      { text: 'Comms Log', icon: <CommsIcon />, path: '/communication-log', roles: [UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff] },
-      { text: 'Reminders', icon: <RemindersIcon />, path: '/reminders', roles: [UserRoles.Admin, UserRoles.SupportStaff] },
+      { text: 'Notifications', icon: <NotificationsIcon />, path: '/notifications',     roles: ALL_STAFF },
+      { text: 'Comms Log',     icon: <CommsIcon />,          path: '/communication-log', roles: ALL_STAFF },
+      { text: 'Reminders',     icon: <RemindersIcon />,      path: '/reminders',         roles: OPS_UP },
     ],
   },
   {
-    label: 'Analytics & Admin',
+    label: 'Reports & Analytics',
     items: [
-      { text: 'Reports', icon: <ReportsIcon />, path: '/reports', roles: [UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff] },
-      { text: 'Documents', icon: <DocumentsIcon />, path: '/documents', roles: [UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff] },
-      { text: 'Audit Log', icon: <AuditIcon />, path: '/audit-log', roles: [UserRoles.Admin] },
-      { text: 'Users', icon: <AdminIcon />, path: '/users', roles: [UserRoles.Admin] },
-      { text: 'Settings', icon: <SettingsIcon />, path: '/settings', roles: [UserRoles.Admin] },
+      { text: 'Reports',   icon: <ReportsIcon />,  path: '/reports',   roles: ALL_STAFF },
+      { text: 'Audit Log', icon: <AuditIcon />,    path: '/audit-log', roles: ADMIN_UP },
+      { text: 'Settings',  icon: <SettingsIcon />, path: '/settings',  roles: ADMIN_UP },
     ],
   },
   {
+    // Patient Portal — visible to Patient role ONLY (isPatientExclusive guard in visibleGroups)
     label: 'Patient',
     items: [
-      { text: 'My Portal', icon: <HomeIcon />, path: '/portal', roles: [UserRoles.Patient] },
-    ],
-  },
-  {
-    label: 'SuperAdmin',
-    items: [
-      { text: 'Tenant Management', icon: <DomainIcon />, path: '/tenants', roles: [UserRoles.SuperAdmin] },
-      { text: 'Audit Log', icon: <AuditIcon />, path: '/audit-log', roles: [UserRoles.SuperAdmin] },
+      { text: 'My Portal',     icon: <HomeIcon />,          path: '/portal',        roles: [UserRoles.Patient] },
+      { text: 'Notifications', icon: <NotificationsIcon />, path: '/notifications', roles: [UserRoles.Patient] },
     ],
   },
 ];
@@ -203,12 +213,12 @@ const MainLayout = ({ children }) => {
     items: group.items.filter(item => {
       // No roles defined → visible to everyone
       if (!item.roles || item.roles.length === 0) return true;
-      // Patient-exclusive items (roles contains ONLY Patient) → visible to Patient only
+      // Patient-exclusive items (ALL roles in array are Patient) → Patient only
       const isPatientExclusive = item.roles.every(r => r === UserRoles.Patient);
       if (isPatientExclusive) return user?.role === UserRoles.Patient;
-      // SuperAdmin bypasses all remaining role checks (sees all staff/admin items)
-      if (isSuperAdmin) return true;
-      // Everyone else must have a matching role
+      // SuperAdmin bypasses all staff/admin role checks (sees all non-patient items)
+      if (isSuperAdmin) return !isPatientExclusive;
+      // Standard role match
       return hasAnyRole(item.roles);
     }),
   })).filter(group => group.items.length > 0);

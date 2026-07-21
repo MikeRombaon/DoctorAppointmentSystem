@@ -8,6 +8,10 @@ import { AuthProvider } from './contexts/AuthContext';
 import { SuperAdminTenantProvider } from './contexts/SuperAdminTenantContext';
 import AppRoutes from './routes/AppRoutes';
 
+// Portal target — keeps MUI modals/popups outside #root so aria-hidden
+// on #root never traps a focused descendant (fixes the aria-hidden warning).
+const modalRoot = () => document.getElementById('modal-root') ?? document.body;
+
 const theme = createTheme({
   palette: {
     primary: {
@@ -169,6 +173,26 @@ const theme = createTheme({
     MuiTextField: {
       defaultProps: {
         size: 'small',
+      },
+    },
+    MuiDialog: {
+      defaultProps: {
+        container: modalRoot,
+      },
+    },
+    MuiPopover: {
+      defaultProps: {
+        container: modalRoot,
+      },
+    },
+    MuiPopper: {
+      defaultProps: {
+        container: modalRoot,
+      },
+    },
+    MuiTooltip: {
+      defaultProps: {
+        PopperProps: { container: modalRoot },
       },
     },
   },
