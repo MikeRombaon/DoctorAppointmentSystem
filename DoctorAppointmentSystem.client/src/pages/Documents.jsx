@@ -12,6 +12,7 @@ import {
   Image, PictureAsPdf, Article,
 } from '@mui/icons-material';
 import { documentService } from '../services/documentService';
+import { useAuth } from '../contexts/AuthContext';
 
 const CATEGORIES = ['General', 'XRay', 'Photo', 'Consent', 'Lab'];
 
@@ -34,6 +35,8 @@ function formatBytes(bytes) {
 
 export default function Documents({ patientId, readOnly = false }) {
   const { tenantVersion } = useSuperAdminTenant();
+  const { user } = useAuth();
+  const isPatient = user?.role === 'Patient';
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -54,9 +57,15 @@ export default function Documents({ patientId, readOnly = false }) {
     setLoading(true);
     setError('');
     try {
-      const data = patientId
-        ? await documentService.getByPatient(patientId, categoryFilter || null)
-        : await documentService.getOwn(categoryFilter || null);
+      let data = [];
+      if (patientId) {
+        // Staff/Admin viewing a specific patient's documents
+        data = await documentService.getByPatient(patientId, categoryFilter || null);
+      } else if (isPatient) {
+        // Patient viewing their own documents via the portal
+        data = await documentService.getOwn(categoryFilter || null);
+      }
+      // Staff/Admin with no patientId selected: show empty state — no API call
       setDocs(data);
     } catch {
       setError('Failed to load documents.');
@@ -139,7 +148,11 @@ export default function Documents({ patientId, readOnly = false }) {
       ) : docs.length === 0 ? (
         <Box textAlign="center" py={6} color="text.secondary">
           <InsertDriveFile sx={{ fontSize: 48, mb: 1 }} />
-          <Typography>No documents found.</Typography>
+          <Typography>
+            {!patientId && !isPatient
+              ? 'Open a patient record to view their documents.'
+              : 'No documents found.'}
+          </Typography>
         </Box>
       ) : (
         <TableContainer component={Paper} variant="outlined">

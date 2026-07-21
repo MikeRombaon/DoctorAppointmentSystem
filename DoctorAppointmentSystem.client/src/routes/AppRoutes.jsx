@@ -8,6 +8,7 @@ import RegisterTenant from '../pages/RegisterTenant';
 import RenewSubscription from '../pages/RenewSubscription';
 import TenantManagement from '../pages/TenantManagement';
 import Dashboard from '../pages/Dashboard';
+import AdminDashboard from '../pages/AdminDashboard';
 import Patients from '../pages/Patients';
 import Appointments from '../pages/Appointments';
 import Treatments from '../pages/Treatments';
@@ -71,6 +72,10 @@ const AppRoutes = () => {
       {/* Staff-accessible routes (Admin, Clinical, Support) */}
       <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.DASHBOARD} />}>
         <Route path={ROUTES.DASHBOARD} element={<Dashboard />} />
+      </Route>
+
+      <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.ADMIN_DASHBOARD} />}>
+        <Route path={ROUTES.ADMIN_DASHBOARD} element={<AdminDashboard />} />
       </Route>
 
       <Route element={<PrivateRoute roles={ROUTE_PERMISSIONS.PATIENTS} />}>

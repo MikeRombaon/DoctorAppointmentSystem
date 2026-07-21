@@ -78,6 +78,11 @@ export const dashboardService = {
     const response = await apiClient.get('/dashboard/revenue/breakdown', { params });
     return response.data;
   },
+
+  getAdminSummary: async () => {
+    const response = await apiClient.get('/dashboard/admin-summary');
+    return response.data;
+  },
 };
 
 export default dashboardService;

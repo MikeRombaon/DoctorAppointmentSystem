@@ -23,6 +23,9 @@ export const ROUTE_PERMISSIONS = {
   CONSENT_FORMS: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff],
   PRESCRIPTIONS: [UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.ClinicalStaff],
 
+  // Admin Dashboard (Admin + SuperAdmin only)
+  ADMIN_DASHBOARD: [UserRoles.SuperAdmin, UserRoles.Admin],
+
   // Admin-only routes
   INVOICES: [UserRoles.SuperAdmin, UserRoles.Admin],
   SUBSCRIPTION: [UserRoles.SuperAdmin, UserRoles.Admin],
@@ -121,6 +124,9 @@ export const ROUTES = {
   NOTIFICATION_CENTER: '/notifications',
   COMMUNICATION_LOG: '/communication-log',
   REMINDERS: '/reminders',
+
+  // Admin Dashboard
+  ADMIN_DASHBOARD: '/admin-dashboard',
 
   // SuperAdmin
   TENANTS: '/tenants',

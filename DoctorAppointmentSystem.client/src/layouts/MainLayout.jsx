@@ -79,6 +79,7 @@ const NAV_GROUPS = [
     label: 'Overview',
     items: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', roles: [UserRoles.Admin, UserRoles.ClinicalStaff, UserRoles.SupportStaff] },
+      { text: 'Admin Dashboard', icon: <AdminIcon />, path: '/admin-dashboard', roles: [UserRoles.Admin] },
     ],
   },
   {
@@ -199,7 +200,17 @@ const MainLayout = ({ children }) => {
   const isSuperAdmin = user?.role === UserRoles.SuperAdmin;
   const visibleGroups = NAV_GROUPS.map(group => ({
     ...group,
-    items: group.items.filter(item => isSuperAdmin || !item.roles || hasAnyRole(item.roles)),
+    items: group.items.filter(item => {
+      // No roles defined → visible to everyone
+      if (!item.roles || item.roles.length === 0) return true;
+      // Patient-exclusive items (roles contains ONLY Patient) → visible to Patient only
+      const isPatientExclusive = item.roles.every(r => r === UserRoles.Patient);
+      if (isPatientExclusive) return user?.role === UserRoles.Patient;
+      // SuperAdmin bypasses all remaining role checks (sees all staff/admin items)
+      if (isSuperAdmin) return true;
+      // Everyone else must have a matching role
+      return hasAnyRole(item.roles);
+    }),
   })).filter(group => group.items.length > 0);
 
   const accentColor = ROLE_ACCENT[user?.role] || '#60a5fa';

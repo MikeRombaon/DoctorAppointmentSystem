@@ -66,6 +66,12 @@ public class DocumentsController : ControllerBase
     [Authorize(Policy = "CanViewOwnRecords")]
     public async Task<IActionResult> GetMyDocuments([FromQuery] string? category)
     {
+        // Staff/Admin roles do not have a linked Patient record.
+        // Return an empty list so the UI degrades gracefully instead of 403.
+        var role = User.FindFirstValue(ClaimTypes.Role);
+        if (role is "SuperAdmin" or "Admin" or "ClinicalStaff" or "SupportStaff")
+            return Ok(Array.Empty<object>());
+
         var patientId = GetCurrentPatientId();
         if (patientId == null) return Forbid();
         return await GetByPatient(patientId.Value, category);

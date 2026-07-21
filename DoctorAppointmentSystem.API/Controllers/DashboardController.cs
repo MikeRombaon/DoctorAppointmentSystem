@@ -289,6 +289,99 @@ public class DashboardController : BaseController
         });
     }
 
+    [HttpGet("admin-summary")]
+    [Authorize(Policy = Policies.AdminOnly)]
+    public async Task<IActionResult> GetAdminSummary()
+    {
+        var today = DateTime.UtcNow.Date;
+        var tomorrow = today.AddDays(1);
+
+        var todayAppointments = await _unitOfWork.Appointments.CountAsync(a =>
+            a.AppointmentDate.Date == today && a.Status != AppointmentStatus.Cancelled);
+
+        var walkInPatients = await _unitOfWork.Appointments.CountAsync(a =>
+            a.AppointmentDate.Date == today && a.IsWalkIn && a.Status != AppointmentStatus.Cancelled);
+
+        var completedConsultations = await _unitOfWork.Appointments.CountAsync(a =>
+            a.AppointmentDate.Date == today && a.Status == AppointmentStatus.Completed);
+
+        var pendingLaboratory = await _unitOfWork.LabOrders.CountAsync(l =>
+            l.Status == LabOrderStatus.Ordered || l.Status == LabOrderStatus.InProgress);
+
+        var inventoryAlerts = await _unitOfWork.InventoryItems.CountAsync(i =>
+            i.IsActive && i.QuantityOnHand <= i.MinimumQuantity);
+
+        var salesToday = await _unitOfWork.Invoices.GetAll()
+            .Where(i => i.InvoiceDate.Date == today)
+            .SumAsync(i => i.PaidAmount);
+
+        var doctorSchedule = await _unitOfWork.Appointments.GetAll()
+            .Where(a => a.AppointmentDate.Date == today && a.Status != AppointmentStatus.Cancelled)
+            .Include(a => a.Patient)
+            .Include(a => a.Dentist)
+            .OrderBy(a => a.Dentist.LastName)
+            .ThenBy(a => a.Dentist.FirstName)
+            .ThenBy(a => a.StartTime)
+            .Select(a => new
+            {
+                AppointmentId = a.Id,
+                DoctorId = a.DentistId,
+                DoctorFirstName = a.Dentist.FirstName,
+                DoctorLastName = a.Dentist.LastName,
+                PatientFirstName = a.Patient.FirstName,
+                PatientLastName = a.Patient.LastName,
+                StartTime = a.StartTime,
+                EndTime = a.EndTime,
+                Purpose = a.Purpose,
+                Status = a.Status,
+                IsWalkIn = a.IsWalkIn,
+                ChairNumber = a.ChairNumber
+            })
+            .ToListAsync();
+
+        // Project to display-friendly strings in memory (FullName & ToString() are not SQL-translatable)
+        var doctorScheduleProjected = doctorSchedule.Select(a => new
+        {
+            a.AppointmentId,
+            a.DoctorId,
+            DoctorName    = $"{a.DoctorFirstName} {a.DoctorLastName}",
+            PatientName   = $"{a.PatientFirstName} {a.PatientLastName}",
+            StartTime     = a.StartTime.ToString(@"hh\:mm"),
+            EndTime       = a.EndTime.ToString(@"hh\:mm"),
+            a.Purpose,
+            Status        = a.Status.ToString(),
+            a.IsWalkIn,
+            a.ChairNumber
+        }).ToList();
+
+        var doctorSummary = doctorScheduleProjected
+            .GroupBy(a => new { a.DoctorId, a.DoctorName })
+            .Select(g => new
+            {
+                g.Key.DoctorId,
+                g.Key.DoctorName,
+                TotalAppointments = g.Count(),
+                Completed = g.Count(a => a.Status == "Completed"),
+                Pending = g.Count(a => a.Status == "Scheduled" || a.Status == "Confirmed"),
+                WalkIns = g.Count(a => a.IsWalkIn),
+                Appointments = g.ToList()
+            })
+            .OrderBy(d => d.DoctorName)
+            .ToList();
+
+        return Ok(new
+        {
+            Date = today,
+            TodayAppointments = todayAppointments,
+            WalkInPatients = walkInPatients,
+            CompletedConsultations = completedConsultations,
+            PendingLaboratory = pendingLaboratory,
+            InventoryAlerts = inventoryAlerts,
+            SalesToday = salesToday,
+            DoctorSchedule = doctorSummary
+        });
+    }
+
     [HttpGet("summary")]
     public async Task<IActionResult> GetSummary()
     {
